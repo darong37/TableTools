@@ -143,4 +143,33 @@ subtest 'group: メタデータを引き継ぐ' => sub {
     ok(exists $grouped->[0]{'#'}, '先頭にメタデータ行がある');
 };
 
+subtest 'group: 2段グループ化' => sub {
+    my $table = [
+        {A => 1, B => 'x', C => 10},
+        {A => 1, B => 'x', C => 20},
+        {A => 1, B => 'y', C => 30},
+        {A => 2, B => 'x', C => 40},
+    ];
+    my $grouped = group($table, ['A'], ['B']);
+
+    # トップレベル: A=1, A=2
+    is(scalar @$grouped, 2, 'トップレベル2グループ');
+    is($grouped->[0]{A}, 1, 'A=1 が先');
+
+    # A=1 の子: B=x, B=y
+    my $a1_children = $grouped->[0]{'@'};
+    is(scalar @$a1_children, 2, 'A=1 の子グループは2件');
+    is($a1_children->[0]{B}, 'x', '先にB=x');
+    is($a1_children->[1]{B}, 'y', '次にB=y');
+
+    # B=x の孫: C=10, C=20
+    my $bx_children = $a1_children->[0]{'@'};
+    is(scalar @$bx_children, 2,  'B=x の孫は2件');
+    is($bx_children->[0]{C}, 10, '孫1: C=10');
+    is($bx_children->[1]{C}, 20, '孫2: C=20');
+
+    ok(!exists $bx_children->[0]{A}, '孫行に A は含まれない');
+    ok(!exists $bx_children->[0]{B}, '孫行に B は含まれない');
+};
+
 done_testing;
