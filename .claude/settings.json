@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(git add*)",
+      "Bash(perl*)",
+      "Bash(ls*)",
+      "Bash(mkdir*)"
+    ]
+  }
+}
