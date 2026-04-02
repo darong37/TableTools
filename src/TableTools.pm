@@ -94,7 +94,27 @@ sub group {
     return attach(\@grouped, $meta);
 }
 
-sub expand   { }
+sub expand {
+    my ($table) = @_;
+    my ($meta, $rows) = detach($table);
+    my @flat = _expand_rows($rows, {});
+    return attach(\@flat, $meta);
+}
+
+sub _expand_rows {
+    my ($rows, $parent) = @_;
+    my @result;
+    for my $row (@$rows) {
+        my %base = (%$parent, %$row);
+        if (exists $base{'@'}) {
+            my $children = delete $base{'@'};
+            push @result, _expand_rows($children, \%base);
+        } else {
+            push @result, \%base;
+        }
+    }
+    return @result;
+}
 
 sub detach {
     my ($table) = @_;

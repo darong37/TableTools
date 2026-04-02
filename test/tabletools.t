@@ -7,7 +7,7 @@ use lib "$FindBin::Bin/../src";
 use_ok('TableTools');
 can_ok('TableTools', qw(validate group expand detach attach));
 
-use TableTools qw(validate group detach attach);
+use TableTools qw(validate group expand detach attach);
 
 subtest '_attrs' => sub {
     my $table = [
@@ -170,6 +170,53 @@ subtest 'group: 2段グループ化' => sub {
 
     ok(!exists $bx_children->[0]{A}, '孫行に A は含まれない');
     ok(!exists $bx_children->[0]{B}, '孫行に B は含まれない');
+};
+
+subtest 'expand: 1段グループ化を戻す' => sub {
+    my $original = [
+        {A => 1, B => 'x', C => 10},
+        {A => 1, B => 'y', C => 20},
+        {A => 2, B => 'x', C => 30},
+    ];
+    my $grouped  = group($original, ['A']);
+    my $flat     = expand($grouped);
+
+    is(scalar @$flat, 3, '元の行数に戻る');
+    is($flat->[0]{A}, 1,   '1行目 A=1');
+    is($flat->[0]{B}, 'x', '1行目 B=x');
+    is($flat->[0]{C}, 10,  '1行目 C=10');
+};
+
+subtest 'expand: 2段グループ化を戻す' => sub {
+    my $original = [
+        {A => 1, B => 'x', C => 10},
+        {A => 1, B => 'x', C => 20},
+        {A => 1, B => 'y', C => 30},
+        {A => 2, B => 'x', C => 40},
+    ];
+    my $grouped = group($original, ['A'], ['B']);
+    my $flat    = expand($grouped);
+
+    is(scalar @$flat, 4, '元の4行に戻る');
+    is($flat->[0]{A}, 1,   '1行目 A=1');
+    is($flat->[0]{B}, 'x', '1行目 B=x');
+    is($flat->[0]{C}, 10,  '1行目 C=10');
+    is($flat->[3]{A}, 2,   '4行目 A=2');
+};
+
+subtest 'expand: メタデータを引き継ぐ' => sub {
+    my $table   = validate([{A => 1, B => 'x'}, {A => 2, B => 'y'}], ['A', 'B']);
+    my $grouped = group($table, ['A']);
+    my $flat    = expand($grouped);
+    ok(exists $flat->[0]{'#'}, '先頭にメタデータ行がある');
+    is($flat->[1]{A}, 1, 'データ行が続く');
+};
+
+subtest 'expand: 純粋 AoH（グループ化なし）はそのまま返る' => sub {
+    my $table = [{A => 1, B => 'x'}, {A => 2, B => 'y'}];
+    my $flat  = expand($table);
+    is(scalar @$flat, 2, '2行のまま');
+    is($flat->[0]{A}, 1, '1行目 A=1');
 };
 
 done_testing;
