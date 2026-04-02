@@ -7,7 +7,7 @@ use lib "$FindBin::Bin/../src";
 use_ok('TableTools');
 can_ok('TableTools', qw(validate group expand detach attach));
 
-use TableTools qw(detach attach);
+use TableTools qw(validate detach attach);
 
 subtest '_attrs' => sub {
     my $table = [
@@ -65,6 +65,18 @@ subtest 'attach: meta が undef' => sub {
     my $bare  = [{A => 1}, {A => 2}];
     my $table = attach($bare, undef);
     is(scalar @$table, 2, 'データ行のみ');
+};
+
+subtest 'validate: cols なし・正常' => sub {
+    my $table = [{A => 1, B => 'x'}, {A => 2, B => 'y'}];
+    my $result = validate($table);
+    is_deeply($result, $table, '入力をそのまま返す');
+};
+
+subtest 'validate: cols なし・キー不一致で die' => sub {
+    my $table = [{A => 1, B => 'x'}, {A => 2, C => 'y'}];
+    eval { validate($table) };
+    like($@, qr/column/i, 'キー不一致で die');
 };
 
 done_testing;

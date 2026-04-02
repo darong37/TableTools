@@ -7,7 +7,36 @@ use Scalar::Util qw(looks_like_number);
 
 our @EXPORT_OK = qw(validate group expand detach attach);
 
-sub validate { }
+sub validate {
+    my ($table, $cols) = @_;
+    my ($meta, $rows) = detach($table);
+    return $table unless @$rows;
+
+    my $base = do {
+        if ($cols) {
+            +{ map { $_ => 1 } @$cols };
+        } else {
+            +{ map { $_ => 1 } keys %{$rows->[0]} };
+        }
+    };
+
+    for my $i (0 .. $#$rows) {
+        my $row = $rows->[$i];
+        for my $k (keys %$base) {
+            die "Row $i: missing column '$k'" unless exists $row->{$k};
+        }
+        for my $k (keys %$row) {
+            die "Row $i: unexpected column '$k'" unless exists $base->{$k};
+        }
+    }
+
+    return $table unless $cols;
+
+    my $new_attrs = _attrs($rows);
+    my $new_meta  = {'#' => [map { {col => $_, attr => $new_attrs->{$_} // 'str'} } @$cols]};
+    return [$new_meta, @$rows];
+}
+
 sub group    { }
 sub expand   { }
 
