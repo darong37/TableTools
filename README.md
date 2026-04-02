@@ -1,40 +1,42 @@
 # TableTools
 
-Perl の Array of Hashes（AoH）を操作するユーティリティモジュール。
-テーブル構造の検証・グループ化・展開・メタデータ管理を行う関数群を提供する。
+A Perl utility module for manipulating Array of Hashes (AoH).
+Provides functions for validating, grouping, expanding, and managing metadata of table structures.
 
-## 使い方
+[日本語版 README はこちら](README_ja.md)
+
+## Usage
 
 ```perl
 use TableTools qw(validate group expand detach attach);
 ```
 
-## 関数
+## Functions
 
 ### `validate($table, $cols)`
 
-テーブルを検証する。
+Validates a table.
 
-- `$cols` なし：全行が同じキー集合を持つか検証し、入力をそのまま返す
-- `$cols` あり：全行が `$cols` のキー集合と一致するか検証し、型情報付きのメタデータ行を先頭に付加したテーブルを返す
+- Without `$cols`: verifies that all rows have the same key set and returns the input as-is
+- With `$cols`: verifies that all rows match the `$cols` key set and returns a table with a metadata row prepended
 
 ```perl
-my $table = validate(\@rows, ['A', 'B', 'C']);  # メタデータ付きで返す
-my $table = validate(\@rows);                    # 検証のみ
+my $table = validate(\@rows, ['A', 'B', 'C']);  # returns table with metadata
+my $table = validate(\@rows);                    # validation only
 ```
 
 ### `group($table, @cols_list)`
 
-テーブルを多段グループ化する。グループキーの値でソートし、子行を `'@'` キーに格納する。
+Groups a table in multiple levels. Sorts rows by group key values and stores child rows under the `'@'` key.
 
 ```perl
-my $grouped = group($table, ['A']);           # 1段グループ化
-my $grouped = group($table, ['A'], ['B']);    # 2段グループ化
+my $grouped = group($table, ['A']);           # single-level grouping
+my $grouped = group($table, ['A'], ['B']);    # two-level grouping
 ```
 
 ### `expand($table)`
 
-グループ化されたテーブルを完全にフラット化する。何重のネストでも一度に展開する。
+Fully flattens a grouped table. Expands any depth of nesting in one call.
 
 ```perl
 my $flat = expand($grouped);
@@ -42,7 +44,7 @@ my $flat = expand($grouped);
 
 ### `detach($table)`
 
-テーブルからメタデータ行を分離する。
+Separates the metadata row from a table.
 
 ```perl
 my ($meta, $bare) = detach($table);
@@ -50,24 +52,24 @@ my ($meta, $bare) = detach($table);
 
 ### `attach($table, $meta)`
 
-メタデータ行をテーブルの先頭に付加する。`$meta` が `undef` の場合は何もしない。
+Prepends a metadata row to a table. Does nothing if `$meta` is `undef`.
 
 ```perl
 my $table = attach($bare, $meta);
 ```
 
-## データ構造
+## Data Structures
 
-### テーブル
+### Table
 
 ```perl
-# 純粋な AoH
+# Plain AoH
 [
     {A => 1, B => 'foo', C => 3},
     {A => 5, B => 'bar', C => 7},
 ]
 
-# メタデータ付き AoH（validate($table, $cols) が返す形式）
+# AoH with metadata (returned by validate($table, $cols))
 [
     {'#' => [{col => 'A', attr => 'num'}, {col => 'B', attr => 'str'}, {col => 'C', attr => 'num'}]},
     {A => 1, B => 'foo', C => 3},
@@ -75,7 +77,7 @@ my $table = attach($bare, $meta);
 ]
 ```
 
-### グループ化後
+### Grouped Table
 
 ```perl
 [
@@ -87,5 +89,5 @@ my $table = attach($bare, $meta);
 ]
 ```
 
-- `'#'`：メタデータ行。カラム名と型情報（`'num'` / `'str'`）を保持
-- `'@'`：子行の配列リファレンス
+- `'#'`: metadata row — holds column names and type info (`'num'` / `'str'`)
+- `'@'`: array reference of child rows
