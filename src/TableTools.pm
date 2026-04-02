@@ -44,12 +44,17 @@ sub group {
     my ($meta, $rows) = detach($table);
     return attach($rows, $meta) unless @$rows;
 
-    # 型情報を取得
     my $attrs = $meta
         ? { map { $_->{col} => $_->{attr} } @{$meta->{'#'}} }
         : _attrs($rows);
 
-    # 全グループキーを展開してソート順を決定
+    my $grouped = _group_rows($rows, $attrs, @cols_list);
+    return attach($grouped, $meta);
+}
+
+sub _group_rows {
+    my ($rows, $attrs, @cols_list) = @_;
+
     my @sort_cols = map { @$_ } @cols_list;
     my @sorted = sort {
         for my $col (@sort_cols) {
@@ -61,7 +66,6 @@ sub group {
         return 0;
     } @$rows;
 
-    # 先頭レベルでグループ化
     my $level_cols = $cols_list[0];
     my @rest       = @cols_list[1 .. $#cols_list];
 
@@ -82,16 +86,13 @@ sub group {
     }
     push @grouped, $current_group if defined $current_group;
 
-    # 残りのレベルで再帰的にグループ化
     if (@rest) {
         for my $parent (@grouped) {
-            my $child_grouped = group($parent->{'@'}, @rest);
-            my (undef, $child_rows) = detach($child_grouped);
-            $parent->{'@'} = $child_rows;
+            $parent->{'@'} = _group_rows($parent->{'@'}, $attrs, @rest);
         }
     }
 
-    return attach(\@grouped, $meta);
+    return \@grouped;
 }
 
 sub expand {
