@@ -13,6 +13,17 @@ sub expand   { }
 sub detach   { }
 sub attach   { }
 
-sub _attrs   { }
+sub _attrs {
+    my ($table) = @_;
+    my %attrs;
+    for my $row (@$table) {
+        next if exists $row->{'#'};
+        for my $col (keys %$row) {
+            $attrs{$col} //= 'num';
+            $attrs{$col} = 'str' unless looks_like_number($row->{$col} // '');
+        }
+    }
+    return \%attrs;
+}
 
 1;
