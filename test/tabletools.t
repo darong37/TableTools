@@ -79,4 +79,29 @@ subtest 'validate: cols なし・キー不一致で die' => sub {
     like($@, qr/column/i, 'キー不一致で die');
 };
 
+subtest 'validate: cols あり・メタデータ付きで返す' => sub {
+    my $rows  = [{A => 1, B => 'foo', C => 3}, {A => 2, B => 'bar', C => 4}];
+    my $table = validate($rows, ['A', 'B', 'C']);
+
+    is(scalar @$table, 3, 'meta + データ2行 = 3要素');
+    ok(exists $table->[0]{'#'}, '先頭はメタデータ行');
+
+    my $meta_cols = $table->[0]{'#'};
+    is($meta_cols->[0]{col},  'A',   '1番目は A');
+    is($meta_cols->[0]{attr}, 'num', 'A は num');
+    is($meta_cols->[1]{col},  'B',   '2番目は B');
+    is($meta_cols->[1]{attr}, 'str', 'B は str');
+    is($meta_cols->[2]{col},  'C',   '3番目は C');
+    is($meta_cols->[2]{attr}, 'num', 'C は num');
+
+    is($table->[1]{A}, 1, 'データ1行目が正しい');
+    is($table->[2]{A}, 2, 'データ2行目が正しい');
+};
+
+subtest 'validate: cols あり・キー不一致で die' => sub {
+    my $rows = [{A => 1, B => 'x'}, {A => 2, C => 'y'}];
+    eval { validate($rows, ['A', 'B']) };
+    like($@, qr/column/i, 'キー不一致で die');
+};
+
 done_testing;
