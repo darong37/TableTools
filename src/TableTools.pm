@@ -48,6 +48,10 @@ sub group {
         ? { map { $_->{col} => $_->{attr} } @{$meta->{'#'}} }
         : _attrs($rows);
 
+    for my $col (map { @$_ } @cols_list) {
+        die "group: unknown column '$col'" unless exists $attrs->{$col};
+    }
+
     my $grouped = _group_rows($rows, $attrs, @cols_list);
     return attach($grouped, $meta);
 }

@@ -172,6 +172,12 @@ subtest 'group: 2段グループ化' => sub {
     ok(!exists $bx_children->[0]{B}, '孫行に B は含まれない');
 };
 
+subtest 'group: 存在しないカラム指定で die' => sub {
+    my $table = validate([{A => 1}, {A => 2}], ['A']);
+    eval { group($table, ['B']) };
+    like($@, qr/column/i, '未存在カラム指定で die');
+};
+
 subtest 'expand: 1段グループ化を戻す' => sub {
     my $original = [
         {A => 1, B => 'x', C => 10},
