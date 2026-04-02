@@ -37,7 +37,63 @@ sub validate {
     return [$new_meta, @$rows];
 }
 
-sub group    { }
+sub group {
+    my ($table, @cols_list) = @_;
+    return $table unless @cols_list;
+
+    my ($meta, $rows) = detach($table);
+    return attach($rows, $meta) unless @$rows;
+
+    # 型情報を取得
+    my $attrs = $meta
+        ? { map { $_->{col} => $_->{attr} } @{$meta->{'#'}} }
+        : _attrs($rows);
+
+    # 全グループキーを展開してソート順を決定
+    my @sort_cols = map { @$_ } @cols_list;
+    my @sorted = sort {
+        for my $col (@sort_cols) {
+            my $cmp = ($attrs->{$col} // 'str') eq 'num'
+                ? (($a->{$col} // 0) <=> ($b->{$col} // 0))
+                : (($a->{$col} // '') cmp ($b->{$col} // ''));
+            return $cmp if $cmp;
+        }
+        return 0;
+    } @$rows;
+
+    # 先頭レベルでグループ化
+    my $level_cols = $cols_list[0];
+    my @rest       = @cols_list[1 .. $#cols_list];
+
+    my @grouped;
+    my ($current_key, $current_group);
+
+    for my $row (@sorted) {
+        my $key = join "\0", map { $row->{$_} // '' } @$level_cols;
+        if (!defined $current_key || $key ne $current_key) {
+            push @grouped, $current_group if defined $current_group;
+            $current_key   = $key;
+            $current_group = { map { $_ => $row->{$_} } @$level_cols };
+            $current_group->{'@'} = [];
+        }
+        my %child = %$row;
+        delete $child{$_} for @$level_cols;
+        push @{ $current_group->{'@'} }, \%child;
+    }
+    push @grouped, $current_group if defined $current_group;
+
+    # 残りのレベルで再帰的にグループ化
+    if (@rest) {
+        for my $parent (@grouped) {
+            my $child_grouped = group($parent->{'@'}, @rest);
+            my (undef, $child_rows) = detach($child_grouped);
+            $parent->{'@'} = $child_rows;
+        }
+    }
+
+    return attach(\@grouped, $meta);
+}
+
 sub expand   { }
 
 sub detach {

@@ -7,7 +7,7 @@ use lib "$FindBin::Bin/../src";
 use_ok('TableTools');
 can_ok('TableTools', qw(validate group expand detach attach));
 
-use TableTools qw(validate detach attach);
+use TableTools qw(validate group detach attach);
 
 subtest '_attrs' => sub {
     my $table = [
@@ -102,6 +102,45 @@ subtest 'validate: cols あり・キー不一致で die' => sub {
     my $rows = [{A => 1, B => 'x'}, {A => 2, C => 'y'}];
     eval { validate($rows, ['A', 'B']) };
     like($@, qr/column/i, 'キー不一致で die');
+};
+
+subtest 'group: 1段グループ化' => sub {
+    my $table = [
+        {A => 1, B => 'x', C => 10},
+        {A => 1, B => 'y', C => 20},
+        {A => 2, B => 'x', C => 30},
+    ];
+    my $grouped = group($table, ['A']);
+
+    is(scalar @$grouped, 2, 'グループ数は2');
+    is($grouped->[0]{A}, 1, '1グループ目は A=1');
+    is(scalar @{$grouped->[0]{'@'}}, 2, 'A=1 の子は2件');
+    is($grouped->[0]{'@'}[0]{B}, 'x', '子の1行目 B=x');
+    is($grouped->[0]{'@'}[0]{C}, 10,  '子の1行目 C=10');
+    ok(!exists $grouped->[0]{'@'}[0]{A}, '子行に A は含まれない');
+
+    is($grouped->[1]{A}, 2, '2グループ目は A=2');
+    is(scalar @{$grouped->[1]{'@'}}, 1, 'A=2 の子は1件');
+};
+
+subtest 'group: ソート順（数値）' => sub {
+    my $table = [
+        {A => 10, B => 'z'},
+        {A => 2,  B => 'a'},
+        {A => 10, B => 'b'},
+    ];
+    my $grouped = group($table, ['A']);
+    is($grouped->[0]{A}, 2,  '数値ソートで A=2 が先');
+    is($grouped->[1]{A}, 10, '次に A=10');
+};
+
+subtest 'group: メタデータを引き継ぐ' => sub {
+    my $table = validate(
+        [{A => 1, B => 'x'}, {A => 2, B => 'y'}],
+        ['A', 'B'],
+    );
+    my $grouped = group($table, ['A']);
+    ok(exists $grouped->[0]{'#'}, '先頭にメタデータ行がある');
 };
 
 done_testing;
