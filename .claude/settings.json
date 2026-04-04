@@ -1,4 +1,7 @@
 {
+  "env": {
+    "PERL5LIB": "/Users/darong/PRJDEV/TableTools/src:/Users/darong/PRJDEV/TableTools/lib"
+  },
   "permissions": {
     "defaultMode": "dontAsk",
     "allow": [

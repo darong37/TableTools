@@ -5,55 +5,112 @@ use warnings;
 use parent 'Exporter';
 use Scalar::Util qw(looks_like_number);
 
-our @EXPORT_OK = qw(validate group expand detach attach);
+our @EXPORT_OK = qw(validate group expand orderby detach attach);
 
-sub validate {
+sub _check_cols {
+    my ($attrs, @cols) = @_;
+    for my $col (@cols) {
+        die "unknown column '$col'" unless exists $attrs->{$col};
+    }
+}
+
+sub _resolve_meta {
     my ($table, $cols) = @_;
-    my ($meta, $rows) = detach($table);
-    return $table unless @$rows;
+    my $called_validate = @_ == 2;
+    my ($rows, $meta)   = detach($table);
+    $meta //= {'#' => {}};
 
-    my $base = do {
-        if ($cols) {
-            +{ map { $_ => 1 } @$cols };
+    my $attrs = $meta->{'#'}{attrs};
+    my $order = $meta->{'#'}{order};
+
+    if (!$attrs) {
+        if ($called_validate) {
+            my @keys = $cols ? @$cols : @$rows ? keys %{$rows->[0]} : ();
+            $attrs = { map { $_ => 'unknown' } @keys };  # initial state: not yet determined
         } else {
-            +{ map { $_ => 1 } keys %{$rows->[0]} };
-        }
-    };
-
-    for my $i (0 .. $#$rows) {
-        my $row = $rows->[$i];
-        for my $k (keys %$base) {
-            die "Row $i: missing column '$k'" unless exists $row->{$k};
-        }
-        for my $k (keys %$row) {
-            die "Row $i: unexpected column '$k'" unless exists $base->{$k};
+            die "attrs not found. Call validate first";
         }
     }
 
-    return $table unless $cols;
+    if ($cols) {
+        die "cols count mismatch" unless @$cols == scalar keys %$attrs;
+        _check_cols($attrs, @$cols);
+        $order = [@$cols];
+    }
 
-    my $new_attrs = _attrs($rows);
-    my $new_meta  = {'#' => [map { {col => $_, attr => $new_attrs->{$_} // 'str'} } @$cols]};
-    return [$new_meta, @$rows];
+    my $new_meta = {'#' => {attrs => $attrs}};
+    $new_meta->{'#'}{order} = $order if $order;
+
+    return ($rows, $new_meta, $attrs, $order);
+}
+
+sub validate {
+    my ($table, $cols) = @_;
+    my ($rows, $meta, $attrs, $order) = _resolve_meta($table, $cols);
+    return [] unless @$rows;
+
+    my $col_count = scalar keys %$attrs;
+
+    for my $i (0 .. $#$rows) {
+        my $row      = $rows->[$i];
+        my @row_keys = keys %$row;
+        die "Row $i: column count mismatch" unless @row_keys == $col_count;
+        for my $k (@row_keys) {
+            die "Row $i: unexpected column '$k'" unless defined $attrs->{$k};
+            die "Row $i: column '$k' value is undef" unless defined $row->{$k};
+            my $is_str = !looks_like_number($row->{$k});
+            if ($attrs->{$k} eq 'unknown') {
+                $attrs->{$k} = $is_str ? 'str' : 'num?';
+            } elsif ($attrs->{$k} eq 'num?') {
+                $attrs->{$k} = 'str' if $is_str;
+            } elsif ($attrs->{$k} eq 'num' && $is_str) {
+                die "Row $i: column '$k' is num but got non-numeric value";
+            }
+            # 'str': no change
+        }
+    }
+
+    # finalize num? to num
+    for my $k (keys %$attrs) {
+        $attrs->{$k} = 'num' if $attrs->{$k} eq 'num?';
+    }
+
+    return attach($rows, $meta);
 }
 
 sub group {
     my ($table, @cols_list) = @_;
     return $table unless @cols_list;
 
-    my ($meta, $rows) = detach($table);
+    my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
+
     return attach($rows, $meta) unless @$rows;
 
-    my $attrs = $meta
-        ? { map { $_->{col} => $_->{attr} } @{$meta->{'#'}} }
-        : _attrs($rows);
-
-    for my $col (map { @$_ } @cols_list) {
-        die "group: unknown column '$col'" unless exists $attrs->{$col};
-    }
+    _check_cols($attrs, map { @$_ } @cols_list);
 
     my $grouped = _group_rows($rows, $attrs, @cols_list);
     return attach($grouped, $meta);
+}
+
+sub orderby {
+    my ($table, @cols) = @_;
+    return $table unless @cols;
+
+    my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
+
+    _check_cols($attrs, @cols);
+
+    my @sorted = sort {
+        for my $col (@cols) {
+            my $cmp = $attrs->{$col} eq 'num'
+                ? (($a->{$col} // 0) <=> ($b->{$col} // 0))
+                : (($a->{$col} // '') cmp ($b->{$col} // ''));
+            return $cmp if $cmp;
+        }
+        return 0;
+    } @$rows;
+
+    return attach(\@sorted, $meta);
 }
 
 sub _group_rows {
@@ -101,8 +158,10 @@ sub _group_rows {
 
 sub expand {
     my ($table) = @_;
-    my ($meta, $rows) = detach($table);
+    my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
+
     my @flat = _expand_rows($rows, {});
+
     return attach(\@flat, $meta);
 }
 
@@ -125,28 +184,15 @@ sub detach {
     my ($table) = @_;
     if (@$table && exists $table->[0]{'#'}) {
         my ($meta, @rows) = @$table;
-        return ($meta, \@rows);
+        return (\@rows, $meta);
     }
-    return (undef, $table);
+    return ($table, undef);
 }
 
 sub attach {
     my ($table, $meta) = @_;
     return $table unless defined $meta;
     return [$meta, @$table];
-}
-
-sub _attrs {
-    my ($table) = @_;
-    my %attrs;
-    for my $row (@$table) {
-        next if exists $row->{'#'};
-        for my $col (keys %$row) {
-            $attrs{$col} //= 'num';
-            $attrs{$col} = 'str' unless looks_like_number($row->{$col} // '');
-        }
-    }
-    return \%attrs;
 }
 
 1;

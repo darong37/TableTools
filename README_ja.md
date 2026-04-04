@@ -1,31 +1,33 @@
 # TableTools
 
 Perl の Array of Hashes（AoH）を操作するユーティリティモジュール。
-テーブル構造の検証・グループ化・展開・メタデータ管理を行う関数群を提供する。
+テーブル構造の検証・グループ化・展開・ソート・メタデータ管理を行う関数群を提供する。
 
 ## 使い方
 
 ```perl
-use TableTools qw(validate group expand detach attach);
+use TableTools qw(validate group expand orderby detach attach);
 ```
 
 ## 関数
 
 ### `validate($table, $cols)`
 
-テーブルを検証する。
+テーブルを検証し、メタデータを付加する。
 
-- `$cols` なし：全行が同じキー集合を持つか検証し、入力をそのまま返す
-- `$cols` あり：全行が `$cols` のキー集合と一致するか検証し、型情報付きのメタデータ行を先頭に付加したテーブルを返す
+- `$cols` なし：全行が同じキー集合を持つか検証し、カラムの型を推論してメタデータ行を先頭に付加したテーブルを返す。入力に既存の `order` がある場合は保持する
+- `$cols` あり：全行が `$cols` のキー集合と一致するか検証し、型情報と順序情報（`attrs` + `order`）を含むメタデータ行を先頭に付加したテーブルを返す
+
+`group`・`expand`・`orderby` は `validate` 済みのテーブルが必要。
 
 ```perl
-my $table = validate(\@rows, ['A', 'B', 'C']);  # メタデータ付きで返す
-my $table = validate(\@rows);                    # 検証のみ
+my $table = validate(\@rows, ['A', 'B', 'C']);  # attrs + order 付きメタデータで返す
+my $table = validate(\@rows);                    # attrs のみのメタデータで返す
 ```
 
 ### `group($table, @cols_list)`
 
-テーブルを多段グループ化する。グループキーの値でソートし、子行を `'@'` キーに格納する。
+`validate` 済みテーブルを多段グループ化する。グループキーの値を型対応でソートし、子行を `'@'` キーに格納する。
 
 ```perl
 my $grouped = group($table, ['A']);           # 1段グループ化
@@ -40,17 +42,26 @@ my $grouped = group($table, ['A'], ['B']);    # 2段グループ化
 my $flat = expand($grouped);
 ```
 
+### `orderby($table, @cols)`
+
+`validate` 済みテーブルを指定カラムの優先順でソートする。型情報に従い数値は `<=>`、文字列は `cmp` で比較する。
+
+```perl
+my $sorted = orderby($table, 'A', 'B');
+```
+
 ### `detach($table)`
 
 テーブルからメタデータ行を分離する。
 
 ```perl
-my ($meta, $bare) = detach($table);
+my ($bare, $meta) = detach($table);
+# メタデータ行がない場合 $meta は undef
 ```
 
 ### `attach($table, $meta)`
 
-メタデータ行をテーブルの先頭に付加する。`$meta` が `undef` の場合は何もしない。
+メタデータ行をテーブルの先頭に付加する。`$meta` が `undef` の場合は `$table` をそのまま返す。
 
 ```perl
 my $table = attach($bare, $meta);
@@ -61,31 +72,37 @@ my $table = attach($bare, $meta);
 ### テーブル
 
 ```perl
-# 純粋な AoH
+# 純粋な AoH（メタデータなし）
 [
     {A => 1, B => 'foo', C => 3},
     {A => 5, B => 'bar', C => 7},
 ]
 
-# メタデータ付き AoH（validate($table, $cols) が返す形式）
+# メタデータ付き AoH（validate が返す形式）
 [
-    {'#' => [{col => 'A', attr => 'num'}, {col => 'B', attr => 'str'}, {col => 'C', attr => 'num'}]},
+    {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}, order => ['A', 'B', 'C']}},
     {A => 1, B => 'foo', C => 3},
     {A => 5, B => 'bar', C => 7},
 ]
 ```
 
-### グループ化後
+- `attrs`：カラム名をキー、型情報（`'num'` または `'str'`）を値とするハッシュ
+- `order`：カラム順序を表す配列リファレンス（`validate($table, $cols)` を通じた場合のみ生成）
+
+### グループ化後のテーブル
 
 ```perl
 [
-    {'#' => [...]},
+    {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}, order => ['A', 'B', 'C']}},
     {A => 1, '@' => [
         {B => 'foo', C => 3},
         {B => 'bar', C => 7},
     ]},
+    {A => 5, '@' => [
+        {B => 'baz', C => 9},
+    ]},
 ]
 ```
 
-- `'#'`：メタデータ行。カラム名と型情報（`'num'` / `'str'`）を保持
+- `'#'`：メタデータ行。`attrs` と任意の `order` を保持する
 - `'@'`：子行の配列リファレンス

@@ -1,33 +1,35 @@
 # TableTools
 
 A Perl utility module for manipulating Array of Hashes (AoH).
-Provides functions for validating, grouping, expanding, and managing metadata of table structures.
+Provides functions for validating, grouping, expanding, sorting, and managing metadata of table structures.
 
 [日本語版 README はこちら](README_ja.md)
 
 ## Usage
 
 ```perl
-use TableTools qw(validate group expand detach attach);
+use TableTools qw(validate group expand orderby detach attach);
 ```
 
 ## Functions
 
 ### `validate($table, $cols)`
 
-Validates a table.
+Validates a table and attaches metadata.
 
-- Without `$cols`: verifies that all rows have the same key set and returns the input as-is
-- With `$cols`: verifies that all rows match the `$cols` key set and returns a table with a metadata row prepended
+- Without `$cols`: verifies all rows have the same key set, infers column types, and returns a table with a metadata row prepended. Existing `order` in the input is preserved.
+- With `$cols`: verifies all rows match the `$cols` key set, infers column types, and returns a table with metadata (`attrs` + `order`) prepended.
+
+`group`, `expand`, and `orderby` require a validate-processed table.
 
 ```perl
-my $table = validate(\@rows, ['A', 'B', 'C']);  # returns table with metadata
-my $table = validate(\@rows);                    # validation only
+my $table = validate(\@rows, ['A', 'B', 'C']);  # returns table with attrs + order metadata
+my $table = validate(\@rows);                    # returns table with attrs metadata
 ```
 
 ### `group($table, @cols_list)`
 
-Groups a table in multiple levels. Sorts rows by group key values and stores child rows under the `'@'` key.
+Groups a validate-processed table in multiple levels. Sorts rows by group key values using type-aware comparison and stores child rows under the `'@'` key.
 
 ```perl
 my $grouped = group($table, ['A']);           # single-level grouping
@@ -42,17 +44,26 @@ Fully flattens a grouped table. Expands any depth of nesting in one call.
 my $flat = expand($grouped);
 ```
 
+### `orderby($table, @cols)`
+
+Sorts a validate-processed table by the specified columns in priority order. Uses type-aware comparison (`num`: `<=>`, `str`: `cmp`).
+
+```perl
+my $sorted = orderby($table, 'A', 'B');
+```
+
 ### `detach($table)`
 
 Separates the metadata row from a table.
 
 ```perl
-my ($meta, $bare) = detach($table);
+my ($bare, $meta) = detach($table);
+# $meta is undef if no metadata row is present
 ```
 
 ### `attach($table, $meta)`
 
-Prepends a metadata row to a table. Does nothing if `$meta` is `undef`.
+Prepends a metadata row to a table. Returns `$table` unchanged if `$meta` is `undef`.
 
 ```perl
 my $table = attach($bare, $meta);
@@ -63,31 +74,37 @@ my $table = attach($bare, $meta);
 ### Table
 
 ```perl
-# Plain AoH
+# Plain AoH (no metadata)
 [
     {A => 1, B => 'foo', C => 3},
     {A => 5, B => 'bar', C => 7},
 ]
 
-# AoH with metadata (returned by validate($table, $cols))
+# AoH with metadata (returned by validate)
 [
-    {'#' => [{col => 'A', attr => 'num'}, {col => 'B', attr => 'str'}, {col => 'C', attr => 'num'}]},
+    {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}, order => ['A', 'B', 'C']}},
     {A => 1, B => 'foo', C => 3},
     {A => 5, B => 'bar', C => 7},
 ]
 ```
+
+- `attrs`: hash of column name to type (`'num'` or `'str'`)
+- `order`: array reference of column names in order (only present when `$cols` is passed to `validate`)
 
 ### Grouped Table
 
 ```perl
 [
-    {'#' => [...]},
+    {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}, order => ['A', 'B', 'C']}},
     {A => 1, '@' => [
         {B => 'foo', C => 3},
         {B => 'bar', C => 7},
     ]},
+    {A => 5, '@' => [
+        {B => 'baz', C => 9},
+    ]},
 ]
 ```
 
-- `'#'`: metadata row — holds column names and type info (`'num'` / `'str'`)
+- `'#'`: metadata row — holds `attrs` and optional `order`
 - `'@'`: array reference of child rows
