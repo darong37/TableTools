@@ -116,27 +116,21 @@ sub orderby {
 sub _group_rows {
     my ($rows, $attrs, @cols_list) = @_;
 
-    my @sort_cols = map { @$_ } @cols_list;
-    my @sorted = sort {
-        for my $col (@sort_cols) {
-            my $cmp = ($attrs->{$col} // 'str') eq 'num'
-                ? (($a->{$col} // 0) <=> ($b->{$col} // 0))
-                : (($a->{$col} // '') cmp ($b->{$col} // ''));
-            return $cmp if $cmp;
-        }
-        return 0;
-    } @$rows;
-
     my $level_cols = $cols_list[0];
     my @rest       = @cols_list[1 .. $#cols_list];
 
     my @grouped;
     my ($current_key, $current_group);
+    my %seen_keys;
 
-    for my $row (@sorted) {
+    for my $row (@$rows) {
         my $key = join "\0", map { $row->{$_} // '' } @$level_cols;
         if (!defined $current_key || $key ne $current_key) {
-            push @grouped, $current_group if defined $current_group;
+            if (defined $current_group) {
+                push @grouped, $current_group;
+                $seen_keys{$current_key} = 1;
+            }
+            die "out of order: key reappeared\n" if $seen_keys{$key};
             $current_key   = $key;
             $current_group = { map { $_ => $row->{$_} } @$level_cols };
             $current_group->{'@'} = [];

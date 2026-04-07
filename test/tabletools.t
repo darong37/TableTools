@@ -146,14 +146,24 @@ subtest 'group: 1段グループ化' => sub {
     is(scalar @{$grouped->[2]{'@'}}, 1, 'A=2 の子は1件');
 };
 
-subtest 'group: ソート順（数値）' => sub {
+subtest 'group: ソート済み入力で正常動作' => sub {
     my $table = validate(
-        [{A => 10, B => 'z'}, {A => 2, B => 'a'}, {A => 10, B => 'b'}],
+        [{A => 2, B => 'a'}, {A => 10, B => 'b'}, {A => 10, B => 'z'}],
         ['A', 'B'],
     );
     my $grouped = group($table, ['A']);
-    is($grouped->[1]{A}, 2,  '数値ソートで A=2 が先');
+    is($grouped->[1]{A}, 2,  'A=2 が先');
     is($grouped->[2]{A}, 10, '次に A=10');
+    is(scalar @{ $grouped->[2]{'@'} }, 2, 'A=10 の子は2件');
+};
+
+subtest 'group: 順序違反で die' => sub {
+    my $table = validate(
+        [{A => 1, B => 'x'}, {A => 2, B => 'y'}, {A => 1, B => 'z'}],
+        ['A', 'B'],
+    );
+    eval { group($table, ['A']) };
+    like($@, qr/out of order/, '順序違反で die する');
 };
 
 subtest 'group: メタデータを引き継ぐ' => sub {

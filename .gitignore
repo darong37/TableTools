@@ -24,3 +24,4 @@ appset.sh
 bind.sh
 lib/
 .claude/commands/
+.claude/settings.json

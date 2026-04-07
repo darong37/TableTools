@@ -29,11 +29,12 @@ my $table = validate(\@rows);                    # returns table with attrs meta
 
 ### `group($table, @cols_list)`
 
-Groups a validate-processed table in multiple levels. Sorts rows by group key values using type-aware comparison and stores child rows under the `'@'` key.
+Groups a validate-processed table in multiple levels. Input must be pre-sorted (use `orderby` first). Stores child rows under the `'@'` key. Raises an error if the same group key reappears non-consecutively.
 
 ```perl
-my $grouped = group($table, ['A']);           # single-level grouping
-my $grouped = group($table, ['A'], ['B']);    # two-level grouping
+my $sorted  = orderby($table, 'A');
+my $grouped = group($sorted, ['A']);           # single-level grouping
+my $grouped = group($sorted, ['A'], ['B']);    # two-level grouping
 ```
 
 ### `expand($table)`
