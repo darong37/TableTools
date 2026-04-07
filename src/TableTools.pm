@@ -1,5 +1,12 @@
 package TableTools;
 
+# Rules:
+# TableTools は validate 済みテーブルを前提に orderby / group / expand を扱う
+# メタデータは '#', 子行は '@' に置く
+# group は入力順をそのまま使うので、必要なら先に orderby する
+# 非連続な同一キーの再出現はエラーにする
+# expand は group 済み構造を平坦化する
+
 use strict;
 use warnings;
 use parent 'Exporter';
@@ -26,7 +33,7 @@ sub _resolve_meta {
     if (!$attrs) {
         if ($called_validate) {
             my @keys = $cols ? @$cols : @$rows ? keys %{$rows->[0]} : ();
-            $attrs = { map { $_ => 'unknown' } @keys };  # initial state: not yet determined
+            $attrs = { map { $_ => 'unknown' } @keys };
         } else {
             die "attrs not found. Call validate first";
         }
@@ -46,11 +53,13 @@ sub _resolve_meta {
 
 sub validate {
     my ($table, $cols) = @_;
+    # meta と rows を分離する
     my ($rows, $meta, $attrs, $order) = _resolve_meta($table, $cols);
     return [] unless @$rows;
 
     my $col_count = scalar keys %$attrs;
 
+    # 列集合を検証する
     for my $i (0 .. $#$rows) {
         my $row      = $rows->[$i];
         my @row_keys = keys %$row;
@@ -59,6 +68,7 @@ sub validate {
             die "Row $i: unexpected column '$k'" unless defined $attrs->{$k};
             die "Row $i: column '$k' value is undef" unless defined $row->{$k};
             my $is_str = !looks_like_number($row->{$k});
+            # attrs を確定する
             if ($attrs->{$k} eq 'unknown') {
                 $attrs->{$k} = $is_str ? 'str' : 'num?';
             } elsif ($attrs->{$k} eq 'num?') {
@@ -66,15 +76,14 @@ sub validate {
             } elsif ($attrs->{$k} eq 'num' && $is_str) {
                 die "Row $i: column '$k' is num but got non-numeric value";
             }
-            # 'str': no change
         }
     }
 
-    # finalize num? to num
     for my $k (keys %$attrs) {
         $attrs->{$k} = 'num' if $attrs->{$k} eq 'num?';
     }
 
+    # attach() で meta を戻して返す
     return attach($rows, $meta);
 }
 
@@ -82,13 +91,16 @@ sub group {
     my ($table, @cols_list) = @_;
     return $table unless @cols_list;
 
+    # meta と rows を分離する
     my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
 
     return attach($rows, $meta) unless @$rows;
 
     _check_cols($attrs, map { @$_ } @cols_list);
 
+    # 入力順のまま連続行をまとめる
     my $grouped = _group_rows($rows, $attrs, @cols_list);
+    # attach() で meta を戻して返す
     return attach($grouped, $meta);
 }
 
@@ -96,10 +108,12 @@ sub orderby {
     my ($table, @cols) = @_;
     return $table unless @cols;
 
+    # meta と rows を分離する
     my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
 
     _check_cols($attrs, @cols);
 
+    # attrs を見て rows をソートする
     my @sorted = sort {
         for my $col (@cols) {
             my $cmp = $attrs->{$col} eq 'num'
@@ -110,6 +124,7 @@ sub orderby {
         return 0;
     } @$rows;
 
+    # attach() で meta を戻して返す
     return attach(\@sorted, $meta);
 }
 
@@ -133,6 +148,7 @@ sub _group_rows {
             die "out of order: key reappeared\n" if $seen_keys{$key};
             $current_key   = $key;
             $current_group = { map { $_ => $row->{$_} } @$level_cols };
+            # 子行を '@' に入れる
             $current_group->{'@'} = [];
         }
         my %child = %$row;
@@ -142,6 +158,7 @@ sub _group_rows {
     push @grouped, $current_group if defined $current_group;
 
     if (@rest) {
+        # 必要なら再帰する
         for my $parent (@grouped) {
             $parent->{'@'} = _group_rows($parent->{'@'}, $attrs, @rest);
         }
@@ -152,10 +169,12 @@ sub _group_rows {
 
 sub expand {
     my ($table) = @_;
+    # meta と rows を分離する
     my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
-
+    # '@' を再帰的に展開する
     my @flat = _expand_rows($rows, {});
 
+    # attach() で meta を戻して返す
     return attach(\@flat, $meta);
 }
 
@@ -163,6 +182,7 @@ sub _expand_rows {
     my ($rows, $parent) = @_;
     my @result;
     for my $row (@$rows) {
+        # 親子をマージして平坦な行へ戻す
         my %base = (%$parent, %$row);
         if (exists $base{'@'}) {
             my $children = delete $base{'@'};
@@ -176,6 +196,7 @@ sub _expand_rows {
 
 sub detach {
     my ($table) = @_;
+    # 先頭の meta を分離する
     if (@$table && exists $table->[0]{'#'}) {
         my ($meta, @rows) = @$table;
         return (\@rows, $meta);
@@ -186,6 +207,7 @@ sub detach {
 sub attach {
     my ($table, $meta) = @_;
     return $table unless defined $meta;
+    # meta があれば先頭に付ける
     return [$meta, @$table];
 }
 
