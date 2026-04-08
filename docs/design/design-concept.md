@@ -59,9 +59,10 @@ Date: 2026-04-07
 - `validate()` は入口の処理とする
 - `validate()` は `rows` または `table` を受け取り、条件を満たす `table` にそろえる
 - すでに条件を満たす `table` を受けたときは、メタデータを作り直さずそのまま返す
-- `detach()` を除く各 API は、内部で必ず `validate()` を呼ぶ
-- 各 API は `rows` と `table` のどちらを受け取ってもよい
+- `detach()` と `attach()` を除く各 API は、内部で必ず `validate()` を呼ぶ
+- `detach()` と `attach()` を除く各 API は `rows` と `table` のどちらを受け取ってもよい
 - ただし `detach()` を除き、出力は必ず `table` に統一する
+- `attach()` は `validate()` を呼ばず、受け取った `rows` と `meta` から `table` を組み立てる
 
 ## API
 記号は次のとおり。
@@ -94,8 +95,9 @@ Date: 2026-04-07
 # order はカラム名の並びを表す配列リファレンス
 #
 # Rules:
-# detach() を除く API は rows でも table でも受け取れる
+# detach() と attach() を除く API は rows でも table でも受け取れる
 # detach() を除く API の出力は table とする
+# attach() は validate() を呼ばず、rows と meta から table を組み立てる
 # attrs は必須で、order は列順を指定した validate() のときだけ付く
 # orderby() は attrs に従って num は数値、str は文字列として並べる
 # group() は入力順をそのまま使うので、必要なら先に orderby() を使う
