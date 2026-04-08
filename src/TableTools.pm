@@ -11,8 +11,11 @@ package TableTools;
 # Rules:
 # detach() と attach() を除く API は rows でも table でも受け取れる
 # detach() を除く API の出力は table とする
+# データ rows が 0 件の場合は、table を作らず [] を返す
+# validate() は rows が 0 件かどうかを必ず確認し、0 件なら [] を返す
 # attach() は validate() を呼ばず、rows と meta から table を組み立てる
 # attrs は必須で、order は列順を指定した validate() のときだけ付く
+# validate() は undef の値を空文字 '' に置き換える
 # orderby() は attrs に従って num は数値、str は文字列として並べる
 # group() は入力順をそのまま使うので、必要なら先に orderby() を使う
 # group() では非連続な同一キーの再出現をエラーにする
@@ -32,19 +35,34 @@ sub _check_cols {
     }
 }
 
+sub _normalize_rows {
+    my ($rows) = @_;
+    for my $row (@$rows) {
+        for my $key (keys %$row) {
+            $row->{$key} = '' unless defined $row->{$key};
+        }
+    }
+}
+
 sub validate {
     my ($aoh, $cols) = @_;
-    # attrs 付き table + $cols なし → 同一参照をそのまま返す（アーリーリターン）
-    if (!$cols && @$aoh && exists $aoh->[0]{'#'} && $aoh->[0]{'#'}{attrs}) {
-        return $aoh;
-    }
     # meta と rows を分離する
     my ($rows, $meta) = detach($aoh);
+    return [] unless @$rows;
+
+    # undef は空文字へ正規化する
+    _normalize_rows($rows);
+
+    # attrs 付き table + $cols なし → 同一参照をそのまま返す（アーリーリターン）
+    if (!$cols && $meta && $meta->{'#'}{attrs}) {
+        return $aoh;
+    }
+
     $meta //= {'#' => {}};
     my $attrs = $meta->{'#'}{attrs};
     my $order = $meta->{'#'}{order};
     if (!$attrs) {
-        my @keys = $cols ? @$cols : @$rows ? keys %{$rows->[0]} : ();
+        my @keys = $cols ? @$cols : keys %{$rows->[0]};
         $attrs = { map { $_ => 'unknown' } @keys };
     }
     if ($cols) {
@@ -54,7 +72,6 @@ sub validate {
     }
     my $new_meta = {'#' => {attrs => $attrs}};
     $new_meta->{'#'}{order} = $order if $order;
-    return [] unless @$rows;
 
     my $col_count = scalar keys %$attrs;
 
@@ -65,8 +82,9 @@ sub validate {
         die "Row $i: column count mismatch" unless @row_keys == $col_count;
         for my $k (@row_keys) {
             die "Row $i: unexpected column '$k'" unless defined $attrs->{$k};
-            die "Row $i: column '$k' value is undef" unless defined $row->{$k};
-            my $is_str = !looks_like_number($row->{$k});
+            my $val = $row->{$k};
+            next if $val eq '';
+            my $is_str = !looks_like_number($val);
             # attrs を確定する
             if ($attrs->{$k} eq 'unknown') {
                 $attrs->{$k} = $is_str ? 'str' : 'num?';
@@ -80,6 +98,7 @@ sub validate {
 
     for my $k (keys %$attrs) {
         $attrs->{$k} = 'num' if $attrs->{$k} eq 'num?';
+        $attrs->{$k} = 'str' if $attrs->{$k} eq 'unknown';
     }
 
     # attach() で meta を戻して返す
@@ -88,11 +107,10 @@ sub validate {
 
 sub group {
     my ($aoh, @cols_list) = @_;
-    return $aoh unless @cols_list;
-
     # validate を内部で呼ぶ（rows でも table でも受け取れる）
     my $table = validate($aoh);
     return $table unless @$table;
+    return $table unless @cols_list;
     my ($rows, $meta) = detach($table);
     my $attrs = $meta->{'#'}{attrs};
 
@@ -106,11 +124,10 @@ sub group {
 
 sub orderby {
     my ($aoh, $cols) = @_;
-    return $aoh unless $cols && @$cols;
-
     # validate を内部で呼ぶ（rows でも table でも受け取れる）
     my $table = validate($aoh);
     return $table unless @$table;
+    return $table unless $cols && @$cols;
     my ($rows, $meta) = detach($table);
     my $attrs = $meta->{'#'}{attrs};
 

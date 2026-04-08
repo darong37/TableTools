@@ -25,33 +25,35 @@ use TableTools qw(validate group expand orderby detach attach);
 - `$rows`: `rows`
 - `$table`: `table`
 - `$cols`: カラム名の配列リファレンス
-- `@cols`: カラム名の並び
 - `@cols_list`: カラム名の配列リファレンスの並び
 - `$meta`: メタデータ
 
 ## 前提条件・制限事項
 
-すべての関数は、**全行が同じキー集合を持つ AoH** を前提とする。
-`group` / `expand` / `orderby` は **`validate` 済みの `table`** のみを受け付ける。
-`attrs` を持たない `table` を渡した場合は `die` する。
+`detach()` と `attach()` を除く各 API は内部で `validate()` を呼ぶ。
+`attach()` は `validate()` を呼ばない低レベルプリミティブであり、受け取った `$rows` と `$meta` をそのまま組み立てる。
+`detach()` と `attach()` を除く各 API は `rows` と `table` のどちらを受け取ってもよい。
+
+`validate()` は rows が 0 件かどうかを必ず確認し、0 件なら `[]` を返す。
+`attrs` 付き `table` を `$cols` なしで `validate()` に渡すと、各行の検証をスキップして同一参照を返す（アーリーリターン）。
+これは「先頭行に `attrs` がある = `validate` が生成した信頼できる `table`」という実装判断に基づく。
+`validate()` は `undef` の値を空文字 `''` に置き換える。
+
+行ごとにキー集合が異なる場合の動作は保証されない。処理中に存在しないカラムが見つかった場合は `die` する。
 
 ```perl
-# validate でメタデータを付与してから group/expand/orderby に渡す
-my $table   = validate(\@rows, ['A', 'B', 'C']);
-my $sorted  = orderby($table, 'A', 'B');
-my $grouped = group($sorted, ['A']);
+my $sorted  = orderby(\@rows, ['A', 'B']);   # rows を直接渡せる
+my $grouped = group(\@rows, ['A']);           # rows を直接渡せる
 my $flat    = expand($grouped);
 ```
-
-行ごとにキー集合が異なる場合の動作は保証されない。処理中にアクセスしようとしたカラムが存在しない row が見つかった場合は `die` する。
 
 ## データ構造
 
 ### `rows` と `table`
 
-`validate` は `rows` と `table` のどちらも受け付ける。`group`・`expand`・`orderby` は `table` のみ受け付ける。
+`detach()` と `attach()` を除く各 API は `rows` と `table` のどちらも受け付ける。
 
-メタデータ付きの `table` を標準形とする。`validate` の戻り値は常に `table`。メタデータのない形が必要な場合は `detach` を利用する。
+メタデータ付きの `table` を標準形とする。`validate` の戻り値は通常 `table`。ただしデータ rows が 0 件の場合は `[]` を返す。メタデータのない形が必要な場合は `detach` を利用する。
 
 ```perl
 # rows
@@ -97,7 +99,7 @@ my $flat    = expand($grouped);
 ### 空テーブルの扱い
 
 空テーブル（data row が 0 件の AoH）はメタデータ付与の対象外とする。
-`validate` はいずれの形式でも、空テーブルに対してメタデータを生成せず、空の AoH（`[]`）のまま返す。
+`validate` は rows 数を必ず確認し、いずれの形式でも data row が 0 件ならメタデータを生成せず `[]` を返す。
 
 ### グループ化後のテーブル
 
@@ -118,70 +120,77 @@ my $flat    = expand($grouped);
 
 ## コーディング方針
 
-各パブリック関数は入口で `_resolve_meta` を呼び出し、メタデータとデータ行を一度に取り出す。
-
-- **`_resolve_meta` で入口を統一する**: `validate`・`group`・`expand` はいずれも処理開始前に `_resolve_meta($table)` または `_resolve_meta($table, $cols)` を呼ぶ。`detach`・`attach` は低レベルのプリミティブとして `_resolve_meta` の内部でのみ使う。`_resolve_meta` の処理順は以下のとおり：
-  1. `detach` でメタデータとデータ行を分離する
-  2. `attrs` を確定する（既存メタから取得するか、`$cols` または先頭行のキーから `'unknown'` で初期化する。`attrs` がなく `validate` 以外から呼ばれた場合は `die`）
-  3. `$cols` が指定されている場合、確定済みの `attrs` と `$cols` のキー集合が一致するかを照合し、不一致なら `die`。一致した場合のみ `order = [@$cols]` を採用する
-- **本体ロジックはメタデータを知らない**: ソート・グループ化・展開などの処理は、メタデータの有無を意識せず `rows` だけを扱う内部関数に切り出す
-- **関数の出口でメタデータを付け直す**: 処理完了後、トップレベルでのみ `attach` でメタデータを先頭に戻す
-- **再帰・中間処理にはメタデータを持ち込まない**: 再帰呼び出しや中間処理の内部でメタデータ付き構造をそのまま渡してはならない
+- `detach()` と `attach()` を除く各パブリック API は冒頭で `validate($aoh)` を呼び出す。data row が 0 件なら `[]` を返す
+- `validate` の戻り値を `detach` で分離してメタとデータ行を取り出す
+- 本体ロジックはメタデータを知らない内部関数に切り出す
+- 処理完了後、トップレベルでのみ `attach` でメタデータを先頭に戻す
+- `attach` は `validate` を呼ばず、渡された `$rows` と `$meta` をそのまま組み立てる
+- `validate` は `undef` の値を空文字 `''` に置き換える
 
 ## 関数仕様
 
 ### `validate($aoh, $cols)`
 
-テーブルを検証する。`$cols` の有無によって戻り値が異なる。
+テーブルを検証する。`$cols` の有無によって動作が異なる。
 
 | 引数 | 説明 |
 |------|------|
 | `$aoh` | `AoH`（`rows` / `table` どちらでもよい） |
 | `$cols` | カラム名の配列リファレンス（省略可）|
 
-**`$cols` あり:**
-1. `_resolve_meta` が `$cols` と `attrs` のキー集合を照合し、不一致なら `die`。一致した場合のみ `order = [@$cols]` を採用する
-2. 各カラムを検証する。`attrs` が未指定の場合は値から型を推論する。`attrs` が既に存在する場合はそれを正として扱い、各値がその型制約に整合するかを検証する（型推論ルール参照）
-3. `$cols` の順序で `attrs` と `order` の両方を含む `table` を返す
-
 **`$cols` なし:**
-1. 最初のデータ行のキーを基準に全行のキー集合一致を検証
-2. 各カラムを検証する。`attrs` が未指定の場合は値から型を推論する。`attrs` が既に存在する場合はそれを正として扱い、各値がその型制約に整合するかを検証する（型推論ルール参照）
-3. `attrs` を更新した `table` を返す。`order` は新たに生成しないが、入力に既存の `order` がある場合は保持する
 
-空テーブルの場合はいずれも `[]` をそのまま返す。検証失敗・型不一致・undef 値の行がある場合は `die`。
+| 入力形式 | アーリーリターン | 動作 | 結果 |
+|---|---|---|---|
+| `rows` | なし | `undef` を `''` に正規化し、型推論で `attrs` を確定 | `attrs` のみ付きの `table` |
+| `table`（`attrs` あり） | あり | rows 数確認後、`undef` を `''` に正規化し、同一参照をそのまま返す（再検証しない） | 入力と同じ参照 |
+| 空テーブル | なし | — | `[]` |
+
+補足: `table` 入力のアーリーリターンは「先頭行に `attrs` がある = validate 済みと信頼する」実装判断。型の不整合があっても再検証しない。
+
+**`$cols` あり:**
+
+| 入力形式 | アーリーリターン | 動作 | 結果 |
+|---|---|---|---|
+| `rows` | なし | `undef` を `''` に正規化し、`$cols` キー集合照合 + 型推論 | `attrs` + `order` 付きの `table` |
+| `table`（`attrs` あり） | なし | `undef` を `''` に正規化し、`$cols` と `attrs` キー集合を照合 | `$cols` 順で `order` を設定した `table` |
+| 空テーブル | なし | — | `[]` |
+
+検証失敗・型不一致・キー集合不一致の場合は `die`。`undef` は `''` に正規化してから扱う。
 
 ```perl
 my $table = validate(\@rows, ['A', 'B', 'C']);  # attrs + order 付きメタデータを返す
 my $table = validate(\@rows);                    # attrs のみのメタデータを返す
+my $same  = validate($table);                    # attrs 付きなら同一参照を返す
 ```
 
-### `group($table, @cols_list)`
+### `group($aoh, @cols_list)`
 
 テーブルを多段グループ化する。
 
 | 引数 | 説明 |
 |------|------|
-| `$table` | `validate` 済みの `table` |
+| `$aoh` | `AoH`（`rows` / `table` どちらでもよい） |
 | `@cols_list` | グループ化するカラム名の配列リファレンスのリスト |
 
-1. `_resolve_meta` でメタデータとデータ行を取り出す（`attrs` がなければ `die`）
-2. `@cols_list` に存在しないカラム名が含まれる場合は即 `die`
-3. 入力行を**ソートせず**そのまま走査する（ソート済み前提）
-4. 先頭レベルのカラムでグループ化し、子行を `'@'` に格納。同一キーが非連続で再出現した場合は `die "out of order: key reappeared"`
-5. 残りのレベルで内部関数 `_group_rows` が再帰的にグループ化
-6. 入力のメタデータをそのまま付け直した `table` を返す
+1. `validate($aoh)` を呼び出す。空テーブルの場合はそのまま返す。`detach` でメタとデータ行を取り出す
+2. `@cols_list` が空なら、`validate` 済みの結果をそのまま返す
+3. `@cols_list` に存在しないカラム名が含まれる場合は即 `die`
+4. 入力行を**ソートせず**そのまま走査する（ソート済み前提）
+5. 先頭レベルのカラムでグループ化し、子行を `'@'` に格納。同一キーが非連続で再出現した場合は `die "out of order: key reappeared"`
+6. 残りのレベルで内部関数 `_group_rows` が再帰的にグループ化
+7. 入力のメタデータをそのまま付け直した `table` を返す
 
 ```perl
 # 2段グループ化
 my $grouped = group($table, ['A'], ['B', 'C']);
 ```
 
-### `expand($table)`
+### `expand($aoh)`
 
 グループ化されたテーブルを完全にフラット化する。何重のネストでも一度にフラット化する。
 
-1. `_resolve_meta` でメタデータとデータ行を取り出す（`attrs` がなければ `die`）
+1. `validate($aoh)` を呼び出す。空テーブルの場合はそのまま返す。`detach` でメタとデータ行を取り出す
 2. `'@'` キーを持つ行を再帰的に展開（親キーと子行をマージ）
 3. 入力のメタデータをそのまま付け直して返す
 
@@ -189,22 +198,23 @@ my $grouped = group($table, ['A'], ['B', 'C']);
 my $flat = expand($grouped);
 ```
 
-### `orderby($table, @cols)`
+### `orderby($aoh, $cols)`
 
 テーブルを指定カラムの優先順でソートする。
 
 | 引数 | 説明 |
 |------|------|
-| `$table` | `validate` 済みの `table` |
-| `@cols` | ソートに使うカラム名（優先順） |
+| `$aoh` | `AoH`（`rows` / `table` どちらでもよい） |
+| `$cols` | ソートに使うカラム名の配列リファレンス |
 
-1. `_resolve_meta` でメタデータとデータ行を取り出す（`attrs` がなければ `die`）
-2. `@cols` に存在しないカラム名が含まれる場合は即 `die`
-3. `@cols` の優先順に従い、`attrs` の型情報でソート（`num` は `<=>`、`str` は `cmp`）
-4. 入力のメタデータをそのまま付け直して返す
+1. `validate($aoh)` を呼び出す。空テーブルの場合はそのまま返す。`detach` でメタとデータ行を取り出す
+2. `$cols` が空なら、`validate` 済みの結果をそのまま返す
+3. `$cols` に存在しないカラム名が含まれる場合は即 `die`
+4. `$cols` の優先順に従い、`attrs` の型情報でソート（`num` は `<=>`、`str` は `cmp`）
+5. 入力のメタデータをそのまま付け直して返す
 
 ```perl
-my $sorted = orderby($table, 'A', 'B');
+my $sorted = orderby($table, ['A', 'B']);
 ```
 
 ### `detach($table)`
@@ -240,7 +250,7 @@ my $table = attach($rows, $meta);
 
 ## エラーハンドリング
 
-- `validate`: キー集合の不一致、undef 値の行がある、確定済み `'num'` カラムに非数値を検出した場合は `die`
-- `group`: `attrs` なし（`validate` 未実行）または未知カラム指定時に `die`
-- `expand`: `attrs` なし（`validate` 未実行）の場合は `die`
-- `orderby`: `attrs` なし（`validate` 未実行）または未知カラム指定時に `die`
+- `validate`: キー集合の不一致、確定済み `'num'` カラムに非数値を検出した場合は `die`
+- `group`: 未知カラム指定時に `die`。非連続な同一キーの再出現時に `die "out of order: key reappeared"`
+- `expand`: エラー条件なし（`validate` が内部で処理）
+- `orderby`: 未知カラム指定時に `die`

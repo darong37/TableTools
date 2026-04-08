@@ -64,6 +64,14 @@ subtest 'validate: cols なし・正常' => sub {
     is($table->[1]{A}, 1,                 'データ1行目が正しい');
 };
 
+subtest 'validate: cols なし・undef は空文字に置き換える' => sub {
+    my $rows  = [{A => undef, B => 'x'}, {A => 2, B => undef}];
+    my $table = validate($rows);
+
+    is($table->[1]{A}, '', '1行目 A は空文字に置き換わる');
+    is($table->[2]{B}, '', '2行目 B は空文字に置き換わる');
+};
+
 subtest 'validate: cols なし・空テーブル' => sub {
     my $result = validate([]);
     is_deeply($result, [], '空テーブルは [] をそのまま返す');
@@ -136,10 +144,23 @@ subtest 'validate: cols なし・attrs 付き table は再検証しない（die 
     is($result, $broken, '同一参照が返る');
 };
 
+subtest 'validate: cols なし・attrs 付き table の undef は空文字に置き換える' => sub {
+    my $table  = [{'#' => {attrs => {A => 'num', B => 'str'}}}, {A => undef, B => 'x'}];
+    my $result = validate($table);
+    is($result, $table, '同一参照が返る');
+    is($table->[1]{A}, '', 'undef は空文字に置き換わる');
+};
+
 subtest 'validate: cols あり・attrs 付き table・$cols 順で order が設定される' => sub {
     my $table  = validate([{A => 1, B => 'x'}, {A => 2, B => 'y'}]);
     my $result = validate($table, ['B', 'A']);
     is_deeply($result->[0]{'#'}{order}, ['B', 'A'], '$cols 順で order が設定される');
+};
+
+subtest 'validate: cols あり・undef は空文字に置き換える' => sub {
+    my $rows  = [{A => 1, B => undef}, {A => 2, B => 'y'}];
+    my $table = validate($rows, ['A', 'B']);
+    is($table->[1]{B}, '', 'undef は空文字に置き換わる');
 };
 
 subtest 'group: 1段グループ化' => sub {
@@ -233,6 +254,18 @@ subtest 'group: rows を直接渡せる' => sub {
     is($grouped->[2]{A}, 2,             'A=2 グループも正しい');
 };
 
+subtest 'group: 空 rows は [] を返す' => sub {
+    my $result = group([], ['A']);
+    is_deeply($result, [], '空 rows は []');
+};
+
+subtest 'group: グループ指定なしでも table にそろう' => sub {
+    my $rows   = [{A => 1}, {A => 2}];
+    my $result = group($rows);
+    ok(exists $result->[0]{'#'}, 'table が返る');
+    is($result->[1]{A}, 1, 'データは保持される');
+};
+
 subtest 'orderby: 数値カラムによるソート' => sub {
     my $table  = validate([{A => 10, B => 'z'}, {A => 2, B => 'a'}, {A => 5, B => 'm'}], ['A', 'B']);
     my $sorted = orderby($table, ['A']);
@@ -278,6 +311,18 @@ subtest 'orderby: rows を直接渡せる' => sub {
     is($sorted->[1]{A}, 1, '1行目 A=1');
     is($sorted->[2]{A}, 2, '2行目 A=2');
     is($sorted->[3]{A}, 3, '3行目 A=3');
+};
+
+subtest 'orderby: 空 rows は [] を返す' => sub {
+    my $result = orderby([], ['A']);
+    is_deeply($result, [], '空 rows は []');
+};
+
+subtest 'orderby: 空 cols でも table にそろう' => sub {
+    my $rows   = [{A => 2}, {A => 1}];
+    my $sorted = orderby($rows, []);
+    ok(exists $sorted->[0]{'#'}, 'table が返る');
+    is($sorted->[1]{A}, 2, '順序はそのまま');
 };
 
 subtest 'orderby: 存在しないカラム指定で die' => sub {
@@ -336,6 +381,11 @@ subtest 'expand: rows を直接渡せる' => sub {
     is(scalar @$result, 3, 'meta + 2行 = 3要素');
     is($result->[1]{A}, 1, '1行目 A=1');
     is($result->[2]{A}, 2, '2行目 A=2');
+};
+
+subtest 'expand: 空 rows は [] を返す' => sub {
+    my $result = expand([]);
+    is_deeply($result, [], '空 rows は []');
 };
 
 done_testing;
