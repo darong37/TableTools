@@ -11,11 +11,17 @@ Provides functions for validating, grouping, expanding, sorting, and managing me
 use TableTools qw(validate group expand orderby detach attach);
 ```
 
+Terms:
+
+- `AoH`: array reference of hash references
+- `rows`: AoH without metadata
+- `table`: AoH with metadata in the first row
+
 ## Functions
 
-### `validate($table, $cols)`
+### `validate($aoh, $cols)`
 
-Validates a table and attaches metadata.
+Validates an `AoH` and returns a `table`.
 
 - Without `$cols`: verifies all rows have the same key set, infers column types, and returns a table with a metadata row prepended. Existing `order` in the input is preserved.
 - With `$cols`: verifies all rows match the `$cols` key set, infers column types, and returns a table with metadata (`attrs` + `order`) prepended.
@@ -55,33 +61,33 @@ my $sorted = orderby($table, 'A', 'B');
 
 ### `detach($table)`
 
-Separates the metadata row from a table.
+Separates the metadata row from a `table`.
 
 ```perl
-my ($bare, $meta) = detach($table);
+my ($rows, $meta) = detach($table);
 # $meta is undef if no metadata row is present
 ```
 
-### `attach($table, $meta)`
+### `attach($rows, $meta)`
 
-Prepends a metadata row to a table. Returns `$table` unchanged if `$meta` is `undef`.
+Prepends a metadata row to `rows`. Returns `$rows` unchanged if `$meta` is `undef`.
 
 ```perl
-my $table = attach($bare, $meta);
+my $table = attach($rows, $meta);
 ```
 
 ## Data Structures
 
-### Table
+### `rows` and `table`
 
 ```perl
-# Plain AoH (no metadata)
+# rows
 [
     {A => 1, B => 'foo', C => 3},
     {A => 5, B => 'bar', C => 7},
 ]
 
-# AoH with metadata (returned by validate)
+# table (returned by validate)
 [
     {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}, order => ['A', 'B', 'C']}},
     {A => 1, B => 'foo', C => 3},

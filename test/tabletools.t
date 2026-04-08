@@ -15,32 +15,32 @@ subtest 'detach: メタデータあり' => sub {
         {A => 1},
         {A => 2},
     ];
-    my ($bare, $meta) = detach($table);
+    my ($rows, $meta) = detach($table);
     ok(defined $meta,                                       'meta が返る');
     is_deeply($meta->{'#'}, {attrs => {A => 'num'}},       'meta の中身が正しい');
-    is(scalar @$bare, 2,                                    'データ行が2件');
-    is($bare->[0]{A}, 1,                                    '1行目のデータが正しい');
+    is(scalar @$rows, 2,                                    'データ行が2件');
+    is($rows->[0]{A}, 1,                                    '1行目のデータが正しい');
 };
 
 subtest 'detach: メタデータなし' => sub {
     my $table = [{A => 1}, {A => 2}];
-    my ($bare, $meta) = detach($table);
+    my ($rows, $meta) = detach($table);
     ok(!defined $meta,          'meta は undef');
-    is(scalar @$bare, 2,        'データ行が2件');
+    is(scalar @$rows, 2,        'データ行が2件');
 };
 
 subtest 'attach: meta あり' => sub {
     my $meta  = {'#' => {attrs => {A => 'num'}}};
-    my $bare  = [{A => 1}, {A => 2}];
-    my $table = attach($bare, $meta);
+    my $rows  = [{A => 1}, {A => 2}];
+    my $table = attach($rows, $meta);
     is(scalar @$table, 3,               '3要素（meta + データ2行）');
     ok(exists $table->[0]{'#'},         '先頭がメタデータ行');
     is($table->[1]{A}, 1,               'データ行が続く');
 };
 
 subtest 'attach: meta が undef' => sub {
-    my $bare  = [{A => 1}, {A => 2}];
-    my $table = attach($bare, undef);
+    my $rows  = [{A => 1}, {A => 2}];
+    my $table = attach($rows, undef);
     is(scalar @$table, 2, 'データ行のみ');
 };
 

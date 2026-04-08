@@ -1,68 +1,104 @@
-# TableTools Concept
+# Design Concept
 Date: 2026-04-07
 
 ## Instruction
-この文書は `TableTools` の設計を決めるための単一の指示書である。
-設計時はこの文書だけに従い、内容は必ず `Concept`、`API`、`Rules` の3段で固める。
+この文書は設計を決めるための単一の指示書である。
+内容は `Concept`、`API`、`Rules` の順で定める。
 
-決める順序もこの文書の一部であり、次の順で固定する。
-- まず `Concept` で何を作るかと何を大事にするかを決める
-- 次に `API` で外から見える操作を決める
-- 最後に `Rules` で、その API をどういう制約と実装方針で支えるかを決める
+- `Concept`: このプロジェクトの設計方針を書く
+- `API`: その方針を外から見える操作として定める
+- `Rules`: その方針と API を支える制約を、Perl のコメント文として書く
 
-`Rules` は単独で先に決めてはならない。
-必ず `Concept` と `API` を受けて定める。
+`Concept` には、何を大事にし、どのように作るかを書く。
+コードを作るときは、`Rules` を `package` 宣言の直下に必ず置く。
 
 ## Concept
-`TableTools` は、Array of Hashes を正規テーブルとして扱うための小さな関数群である。
-AoH は配列リファレンスにハッシュリファレンスが並ぶ形だが、
-データ行だけでは `orderby()` や `group()` のような cols 系の処理に必要な前提が足りない。
-そのため `TableTools` では、AoH を正規テーブルとして使うために
-メタ情報をテーブルと一緒に持つことを前提にする。
+用語は次のとおり。
 
-実装時には、ルールをコードからすぐ読めることも重視する。
-そのためルールは別紙のスケッチには切り出さず、
-モジュールの `package` 宣言の直下に `Rules:` コメントとして書く前提にする。
-出力時にもこの形をそのまま使う。
-
-また、特に `group()` では行の並び順そのものが結果に影響する。
-入力は必要な順に並んでいることを前提にし、並んでいない場合は先に `orderby()` で整える。
-
-メタ情報として持つのは、少なくとも
-- どんなカラムがあるか
-- カラムの属性が `num` か `str` か
-- 必要に応じたカラム順
-
-である。
-
-## API
-| API | 役割 | 説明 |
-|---|---|---|
-| `validate($table)` | 検証 | 列集合を検証し、`attrs` を付ける |
-| `validate($table, $cols)` | 検証 | 列集合を検証し、`attrs` と `order` を付ける |
-| `orderby($table, @cols)` | 整列 | 型情報に従って並べ替える |
-| `group($table, @cols_list)` | 構造化 | 連続行を多段グループにまとめる |
-| `expand($table)` | 展開 | グループ化された構造を平坦に戻す |
-| `detach($table)` | 分離 | メタデータ行を外す |
-| `attach($table, $meta)` | 付与 | メタデータ行を先頭に戻す |
-
-## Rules
-- `orderby()` / `group()` / `expand()` を使う前には `validate()` を通す
-- メタデータは `'#'`、子行は `'@'` に置く
-- `group()` は入力順をそのまま使うので、必要なら先に `orderby()` で並べる
-- 非連続な同一キーの再出現はエラーにする
-- `expand()` は `group()` 済み構造を平坦化する
-- 実装上のルールは、上の API を前提にモジュールの `package` 宣言の直下へ `Rules:` コメントとして書く
-
-### Output Example
+- `AoH`: ハッシュリファレンスの配列リファレンス
+- メタデータ: AoH の先頭にだけ置く。形は次のとおり
 
 ```perl
-package TableTools;
+{'#' => {
+    attrs => {A => 'num', B => 'str', C => 'num'},
+    order => ['A', 'B', 'C'],   # 省略可
+}}
+```
 
+- `attrs` はカラム名をキーに持つハッシュ
+- `attrs` の値は `num` または `str`
+- `num` は数値としてソートするカラムを表す
+- `str` は文字列としてソートするカラムを表す
+- `attrs` は必須
+- `order` はカラム名の並びを表す配列リファレンス
+- `order` は列順を指定した `validate` のときだけ持つ
+- `rows`: メタデータを持たない AoH。形は次のとおり
+
+```perl
+[
+    {A => 1, B => 'x', C => 10},
+    {A => 2, B => 'y', C => 20},
+]
+```
+
+- `table`: 先頭にメタデータを持つ AoH。各 row は `attrs` に定義された全キーを持つ。値は `undef` でもよい。形は次のとおり
+
+```perl
+[
+    {'#' => {
+        attrs => {A => 'num', B => 'str', C => 'num'},
+        order => ['A', 'B', 'C'],   # 省略可
+    }},
+    {A => 1, B => 'x', C => 10},
+    {A => 2, B => 'y', C => 20},
+]
+```
+
+方針は次のとおり。
+
+- `validate()` は入口の処理とする
+- `validate()` は `rows` または `table` を受け取り、条件を満たす `table` にそろえる
+- すでに条件を満たす `table` を受けたときは、メタデータを作り直さずそのまま返す
+- `detach()` を除く各 API は、内部で必ず `validate()` を呼ぶ
+- 各 API は `rows` と `table` のどちらを受け取ってもよい
+- ただし `detach()` を除き、出力は必ず `table` に統一する
+
+## API
+記号は次のとおり。
+
+- `$aoh`: `AoH`
+- `$rows`: `rows`
+- `$table`: `table`
+- `$cols`: カラム名の配列リファレンス
+- `@cols_list`: カラム名の配列リファレンスの並び
+- `$meta`: メタデータ
+
+| API | 役割 | 入力 | 出力 |
+|---|---|---|---|
+| `validate($aoh)` | 検証 | `AoH` | `$table` |
+| `validate($aoh, $cols)` | 検証 | `AoH`, `$cols` | `$table` |
+| `orderby($aoh, $cols)` | 整列 | `AoH`, `$cols` | `$table` |
+| `group($aoh, @cols_list)` | 構造化 | `AoH`, `@cols_list` | `$table` |
+| `expand($aoh)` | 展開 | `AoH` | `$table` |
+| `detach($aoh)` | 分離 | `AoH` | `$rows` |
+| `attach($rows, $meta)` | 付与 | `$rows`, `$meta` | `$table` |
+
+## Rules
+```perl
+# Terms:
+# AoH はハッシュリファレンスの配列リファレンス
+# rows はメタデータを持たない AoH
+# table は先頭行にメタデータを持つ AoH
+# table のメタデータは '#' に置く
+# attrs はカラム名をキーに持つハッシュで、値は num または str
+# order はカラム名の並びを表す配列リファレンス
+#
 # Rules:
-# TableTools は validate 済みテーブルを前提に orderby / group / expand を扱う
-# メタデータは '#', 子行は '@' に置く
-# group は入力順をそのまま使うので、必要なら先に orderby する
-# 非連続な同一キーの再出現はエラーにする
-# expand は group 済み構造を平坦化する
+# detach() を除く API は rows でも table でも受け取れる
+# detach() を除く API の出力は table とする
+# attrs は必須で、order は列順を指定した validate() のときだけ付く
+# orderby() は attrs に従って num は数値、str は文字列として並べる
+# group() は入力順をそのまま使うので、必要なら先に orderby() を使う
+# group() では非連続な同一キーの再出現をエラーにする
+# expand() は group() 済みの table を平坦化して table を返す
 ```

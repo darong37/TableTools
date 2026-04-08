@@ -1,11 +1,17 @@
 package TableTools;
 
+# Terms:
+# AoH はハッシュリファレンスの配列リファレンス
+# rows はメタデータを持たない AoH
+# table は先頭行にメタデータを持つ AoH
+# table のメタデータは '#' に置く
+#
 # Rules:
-# TableTools は validate 済みテーブルを前提に orderby / group / expand を扱う
-# メタデータは '#', 子行は '@' に置く
-# group は入力順をそのまま使うので、必要なら先に orderby する
-# 非連続な同一キーの再出現はエラーにする
-# expand は group 済み構造を平坦化する
+# validate() は AoH を validate 済みの table にそろえる
+# orderby() / group() / expand() は validate 済みの table を扱う
+# group() は入力順をそのまま使うので、必要なら先に orderby() する
+# group() では非連続な同一キーの再出現をエラーにする
+# expand() は group() 済み構造を平坦化する
 
 use strict;
 use warnings;
@@ -22,9 +28,9 @@ sub _check_cols {
 }
 
 sub _resolve_meta {
-    my ($table, $cols) = @_;
+    my ($aoh, $cols) = @_;
     my $called_validate = @_ == 2;
-    my ($rows, $meta)   = detach($table);
+    my ($rows, $meta)   = detach($aoh);
     $meta //= {'#' => {}};
 
     my $attrs = $meta->{'#'}{attrs};
@@ -52,9 +58,9 @@ sub _resolve_meta {
 }
 
 sub validate {
-    my ($table, $cols) = @_;
+    my ($aoh, $cols) = @_;
     # meta と rows を分離する
-    my ($rows, $meta, $attrs, $order) = _resolve_meta($table, $cols);
+    my ($rows, $meta, $attrs, $order) = _resolve_meta($aoh, $cols);
     return [] unless @$rows;
 
     my $col_count = scalar keys %$attrs;
@@ -195,20 +201,20 @@ sub _expand_rows {
 }
 
 sub detach {
-    my ($table) = @_;
+    my ($aoh) = @_;
     # 先頭の meta を分離する
-    if (@$table && exists $table->[0]{'#'}) {
-        my ($meta, @rows) = @$table;
+    if (@$aoh && exists $aoh->[0]{'#'}) {
+        my ($meta, @rows) = @$aoh;
         return (\@rows, $meta);
     }
-    return ($table, undef);
+    return ($aoh, undef);
 }
 
 sub attach {
-    my ($table, $meta) = @_;
-    return $table unless defined $meta;
+    my ($rows, $meta) = @_;
+    return $rows unless defined $meta;
     # meta があれば先頭に付ける
-    return [$meta, @$table];
+    return [$meta, @$rows];
 }
 
 1;
