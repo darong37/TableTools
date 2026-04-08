@@ -75,17 +75,6 @@ subtest 'validate: cols なし・既存 order を保持' => sub {
     is_deeply($result->[0]{'#'}{order}, ['A', 'B'],  'order の内容が正しい');
 };
 
-subtest 'validate: cols なし・既存 attrs が num のカラムに非数値で die' => sub {
-    my $table = validate([{A => 1}, {A => 2}], ['A']);
-    eval { validate([{'#' => {attrs => {A => 'num'}}}, {A => 'x'}]) };
-    like($@, qr/num/i, '既存 num カラムに非数値で die');
-};
-
-subtest 'validate: cols なし・既存 attrs が str のカラムに数値は通過' => sub {
-    my $table = [{'#' => {attrs => {A => 'str'}}}, {A => 1}, {A => 2}];
-    my $result = validate($table);
-    is($result->[0]{'#'}{attrs}{A}, 'str', 'str カラムに数値でも str のまま');
-};
 
 subtest 'validate: cols あり・メタデータ付きで返す' => sub {
     my $rows  = [{A => 1, B => 'foo', C => 3}, {A => 2, B => 'bar', C => 4}];
@@ -125,6 +114,25 @@ subtest 'validate: cols あり・既存 order と異なる順序で order が上
     my $table  = validate([{A => 1, B => 'x'}, {A => 2, B => 'y'}], ['A', 'B']);
     my $result = validate($table, ['B', 'A']);
     is_deeply($result->[0]{'#'}{order}, ['B', 'A'], '$cols の順序で order が上書きされる');
+};
+
+subtest 'validate: cols なし・attrs 付き table は同一参照が返る（アーリーリターン）' => sub {
+    my $table  = validate([{A => 1, B => 'x'}, {A => 2, B => 'y'}], ['A', 'B']);
+    my $result = validate($table);
+    is($result, $table, '同一参照が返る（再検証しない）');
+};
+
+subtest 'validate: cols なし・attrs 付き table は再検証しない（die しない）' => sub {
+    my $broken = [{'#' => {attrs => {A => 'num'}}}, {A => 'not_a_number'}];
+    my $result = eval { validate($broken) };
+    ok(!$@,              'die しない（アーリーリターン）');
+    is($result, $broken, '同一参照が返る');
+};
+
+subtest 'validate: cols あり・attrs 付き table・$cols 順で order が設定される' => sub {
+    my $table  = validate([{A => 1, B => 'x'}, {A => 2, B => 'y'}]);
+    my $result = validate($table, ['B', 'A']);
+    is_deeply($result->[0]{'#'}{order}, ['B', 'A'], '$cols 順で order が設定される');
 };
 
 subtest 'group: 1段グループ化' => sub {

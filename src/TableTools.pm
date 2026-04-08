@@ -59,6 +59,10 @@ sub _resolve_meta {
 
 sub validate {
     my ($aoh, $cols) = @_;
+    # attrs 付き table + $cols なし → 同一参照をそのまま返す（アーリーリターン）
+    if (!$cols && @$aoh && exists $aoh->[0]{'#'} && $aoh->[0]{'#'}{attrs}) {
+        return $aoh;
+    }
     # meta と rows を分離する
     my ($rows, $meta, $attrs, $order) = _resolve_meta($aoh, $cols);
     return [] unless @$rows;
