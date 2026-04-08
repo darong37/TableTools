@@ -98,13 +98,14 @@ sub validate {
 }
 
 sub group {
-    my ($table, @cols_list) = @_;
-    return $table unless @cols_list;
+    my ($aoh, @cols_list) = @_;
+    return $aoh unless @cols_list;
 
-    # meta と rows を分離する
-    my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
-
-    return attach($rows, $meta) unless @$rows;
+    # validate を内部で呼ぶ（rows でも table でも受け取れる）
+    my $table = validate($aoh);
+    return $table unless @$table;
+    my ($rows, $meta) = detach($table);
+    my $attrs = $meta->{'#'}{attrs};
 
     _check_cols($attrs, map { @$_ } @cols_list);
 
@@ -181,9 +182,11 @@ sub _group_rows {
 }
 
 sub expand {
-    my ($table) = @_;
-    # meta と rows を分離する
-    my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
+    my ($aoh) = @_;
+    # validate を内部で呼ぶ（rows でも table でも受け取れる）
+    my $table = validate($aoh);
+    return $table unless @$table;
+    my ($rows, $meta) = detach($table);
     # '@' を再帰的に展開する
     my @flat = _expand_rows($rows, {});
 

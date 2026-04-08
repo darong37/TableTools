@@ -218,10 +218,12 @@ subtest 'group: 存在しないカラム指定で die' => sub {
     like($@, qr/column/i, '未存在カラム指定で die');
 };
 
-subtest 'group: バリデートなしの AoH で die' => sub {
-    my $table = [{A => 1, B => 'x'}, {A => 2, B => 'y'}];
-    eval { group($table, ['A']) };
-    like($@, qr/validate/i, 'バリデートなしで die');
+subtest 'group: rows を直接渡せる' => sub {
+    my $rows    = [{A => 1, B => 'x'}, {A => 1, B => 'y'}, {A => 2, B => 'z'}];
+    my $grouped = group($rows, ['A']);
+    is($grouped->[1]{A}, 1,             'rows を直接渡してもグループ化される');
+    is(scalar @{$grouped->[1]{'@'}}, 2, 'A=1 の子は2件');
+    is($grouped->[2]{A}, 2,             'A=2 グループも正しい');
 };
 
 subtest 'orderby: 数値カラムによるソート' => sub {
@@ -321,10 +323,12 @@ subtest 'expand: メタデータを引き継ぐ' => sub {
     is($flat->[1]{A}, 1, 'データ行が続く');
 };
 
-subtest 'expand: バリデートなしの AoH で die' => sub {
-    my $table = [{A => 1, B => 'x'}, {A => 2, B => 'y'}];
-    eval { expand($table) };
-    like($@, qr/validate/i, 'バリデートなしで die');
+subtest 'expand: rows を直接渡せる' => sub {
+    my $rows   = [{A => 1, B => 'x'}, {A => 2, B => 'y'}];
+    my $result = expand($rows);
+    is(scalar @$result, 3, 'meta + 2行 = 3要素');
+    is($result->[1]{A}, 1, '1行目 A=1');
+    is($result->[2]{A}, 2, '2行目 A=2');
 };
 
 done_testing;
