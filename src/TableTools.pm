@@ -5,13 +5,18 @@ package TableTools;
 # rows はメタデータを持たない AoH
 # table は先頭行にメタデータを持つ AoH
 # table のメタデータは '#' に置く
+# attrs はカラム名をキーに持つハッシュで、値は num または str
+# order はカラム名の並びを表す配列リファレンス
 #
 # Rules:
-# validate() は AoH を validate 済みの table にそろえる
-# orderby() / group() / expand() は validate 済みの table を扱う
-# group() は入力順をそのまま使うので、必要なら先に orderby() する
+# detach() と attach() を除く API は rows でも table でも受け取れる
+# detach() を除く API の出力は table とする
+# attach() は validate() を呼ばず、rows と meta から table を組み立てる
+# attrs は必須で、order は列順を指定した validate() のときだけ付く
+# orderby() は attrs に従って num は数値、str は文字列として並べる
+# group() は入力順をそのまま使うので、必要なら先に orderby() を使う
 # group() では非連続な同一キーの再出現をエラーにする
-# expand() は group() 済み構造を平坦化する
+# expand() は group() 済みの table を平坦化して table を返す
 
 use strict;
 use warnings;
@@ -27,36 +32,6 @@ sub _check_cols {
     }
 }
 
-sub _resolve_meta {
-    my ($aoh, $cols) = @_;
-    my $called_validate = @_ == 2;
-    my ($rows, $meta)   = detach($aoh);
-    $meta //= {'#' => {}};
-
-    my $attrs = $meta->{'#'}{attrs};
-    my $order = $meta->{'#'}{order};
-
-    if (!$attrs) {
-        if ($called_validate) {
-            my @keys = $cols ? @$cols : @$rows ? keys %{$rows->[0]} : ();
-            $attrs = { map { $_ => 'unknown' } @keys };
-        } else {
-            die "attrs not found. Call validate first";
-        }
-    }
-
-    if ($cols) {
-        die "cols count mismatch" unless @$cols == scalar keys %$attrs;
-        _check_cols($attrs, @$cols);
-        $order = [@$cols];
-    }
-
-    my $new_meta = {'#' => {attrs => $attrs}};
-    $new_meta->{'#'}{order} = $order if $order;
-
-    return ($rows, $new_meta, $attrs, $order);
-}
-
 sub validate {
     my ($aoh, $cols) = @_;
     # attrs 付き table + $cols なし → 同一参照をそのまま返す（アーリーリターン）
@@ -64,7 +39,21 @@ sub validate {
         return $aoh;
     }
     # meta と rows を分離する
-    my ($rows, $meta, $attrs, $order) = _resolve_meta($aoh, $cols);
+    my ($rows, $meta) = detach($aoh);
+    $meta //= {'#' => {}};
+    my $attrs = $meta->{'#'}{attrs};
+    my $order = $meta->{'#'}{order};
+    if (!$attrs) {
+        my @keys = $cols ? @$cols : @$rows ? keys %{$rows->[0]} : ();
+        $attrs = { map { $_ => 'unknown' } @keys };
+    }
+    if ($cols) {
+        die "cols count mismatch" unless @$cols == scalar keys %$attrs;
+        _check_cols($attrs, @$cols);
+        $order = [@$cols];
+    }
+    my $new_meta = {'#' => {attrs => $attrs}};
+    $new_meta->{'#'}{order} = $order if $order;
     return [] unless @$rows;
 
     my $col_count = scalar keys %$attrs;
@@ -94,7 +83,7 @@ sub validate {
     }
 
     # attach() で meta を戻して返す
-    return attach($rows, $meta);
+    return attach($rows, $new_meta);
 }
 
 sub group {
