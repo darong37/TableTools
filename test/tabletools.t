@@ -44,6 +44,13 @@ subtest 'attach: meta が undef' => sub {
     is(scalar @$table, 2, 'データ行のみ');
 };
 
+subtest 'attach: 渡した $meta がそのまま先頭に付く' => sub {
+    my $meta  = {'#' => {attrs => {A => 'num'}, order => ['A']}};
+    my $rows  = [{A => 1}, {A => 2}];
+    my $table = attach($rows, $meta);
+    is($table->[0], $meta, '渡した $meta と同一参照が先頭に付く');
+};
+
 subtest 'validate: cols なし・正常' => sub {
     my $rows  = [{A => 1, B => 'x'}, {A => 2, B => 'y'}];
     my $table = validate($rows);
