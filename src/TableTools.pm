@@ -115,17 +115,20 @@ sub group {
 }
 
 sub orderby {
-    my ($table, @cols) = @_;
-    return $table unless @cols;
+    my ($aoh, $cols) = @_;
+    return $aoh unless $cols && @$cols;
 
-    # meta と rows を分離する
-    my ($rows, $meta, $attrs, $order) = _resolve_meta($table);
+    # validate を内部で呼ぶ（rows でも table でも受け取れる）
+    my $table = validate($aoh);
+    return $table unless @$table;
+    my ($rows, $meta) = detach($table);
+    my $attrs = $meta->{'#'}{attrs};
 
-    _check_cols($attrs, @cols);
+    _check_cols($attrs, @$cols);
 
     # attrs を見て rows をソートする
     my @sorted = sort {
-        for my $col (@cols) {
+        for my $col (@$cols) {
             my $cmp = $attrs->{$col} eq 'num'
                 ? (($a->{$col} // 0) <=> ($b->{$col} // 0))
                 : (($a->{$col} // '') cmp ($b->{$col} // ''));

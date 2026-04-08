@@ -226,7 +226,7 @@ subtest 'group: バリデートなしの AoH で die' => sub {
 
 subtest 'orderby: 数値カラムによるソート' => sub {
     my $table  = validate([{A => 10, B => 'z'}, {A => 2, B => 'a'}, {A => 5, B => 'm'}], ['A', 'B']);
-    my $sorted = orderby($table, 'A');
+    my $sorted = orderby($table, ['A']);
     is($sorted->[1]{A}, 2,  '1行目 A=2');
     is($sorted->[2]{A}, 5,  '2行目 A=5');
     is($sorted->[3]{A}, 10, '3行目 A=10');
@@ -234,7 +234,7 @@ subtest 'orderby: 数値カラムによるソート' => sub {
 
 subtest 'orderby: 文字列カラムによるソート' => sub {
     my $table  = validate([{A => 1, B => 'z'}, {A => 2, B => 'a'}, {A => 3, B => 'm'}], ['A', 'B']);
-    my $sorted = orderby($table, 'B');
+    my $sorted = orderby($table, ['B']);
     is($sorted->[1]{B}, 'a', '1行目 B=a');
     is($sorted->[2]{B}, 'm', '2行目 B=m');
     is($sorted->[3]{B}, 'z', '3行目 B=z');
@@ -245,7 +245,7 @@ subtest 'orderby: 複数カラムによる優先順位ソート' => sub {
         [{A => 1, B => 'z'}, {A => 2, B => 'a'}, {A => 1, B => 'a'}],
         ['A', 'B'],
     );
-    my $sorted = orderby($table, 'A', 'B');
+    my $sorted = orderby($table, ['A', 'B']);
     is($sorted->[1]{A}, 1,   '1行目 A=1');
     is($sorted->[1]{B}, 'a', '1行目 B=a');
     is($sorted->[2]{A}, 1,   '2行目 A=1');
@@ -255,7 +255,7 @@ subtest 'orderby: 複数カラムによる優先順位ソート' => sub {
 
 subtest 'orderby: メタデータを引き継ぐ' => sub {
     my $table  = validate([{A => 2, B => 'x'}, {A => 1, B => 'y'}], ['A', 'B']);
-    my $sorted = orderby($table, 'A');
+    my $sorted = orderby($table, ['A']);
     ok(exists $sorted->[0]{'#'},                    '先頭にメタデータ行がある');
     ok(exists $sorted->[0]{'#'}{order},             'order が引き継がれている');
     is_deeply($sorted->[0]{'#'}{order}, ['A', 'B'], 'order の内容が正しい');
@@ -263,15 +263,17 @@ subtest 'orderby: メタデータを引き継ぐ' => sub {
     is($sorted->[0]{'#'}{attrs}{B}, 'str',          'attrs B が引き継がれている');
 };
 
-subtest 'orderby: バリデートなしの AoH で die' => sub {
-    my $table = [{A => 2, B => 'x'}, {A => 1, B => 'y'}];
-    eval { orderby($table, 'A') };
-    like($@, qr/validate/i, 'バリデートなしで die');
+subtest 'orderby: rows を直接渡せる' => sub {
+    my $rows   = [{A => 3}, {A => 1}, {A => 2}];
+    my $sorted = orderby($rows, ['A']);
+    is($sorted->[1]{A}, 1, '1行目 A=1');
+    is($sorted->[2]{A}, 2, '2行目 A=2');
+    is($sorted->[3]{A}, 3, '3行目 A=3');
 };
 
 subtest 'orderby: 存在しないカラム指定で die' => sub {
     my $table = validate([{A => 1}, {A => 2}], ['A']);
-    eval { orderby($table, 'B') };
+    eval { orderby($table, ['B']) };
     like($@, qr/column/i, '未存在カラム指定で die');
 };
 
