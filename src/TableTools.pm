@@ -20,6 +20,9 @@ package TableTools;
 # group() は入力順をそのまま使うので、必要なら先に orderby() を使う
 # group() では非連続な同一キーの再出現をエラーにする
 # expand() は group() 済みの table を平坦化して table を返す
+# count は validate() が生成する meta に必ず含まれ、table の rows 件数を表す
+# orderby() は行数不変なので meta をそのまま維持する
+# group() と expand() は rows 件数が変わるので count を再計算した新 meta を生成する
 
 use strict;
 use warnings;
@@ -54,6 +57,7 @@ sub validate {
     _normalize_rows($rows);
 
     # attrs 付き table + $cols なし → 同一参照をそのまま返す（アーリーリターン）
+    # ただしその前に undef の空文字正規化は行う
     if (!$cols && $meta && $meta->{'#'}{attrs}) {
         return $aoh;
     }
@@ -70,7 +74,7 @@ sub validate {
         _check_cols($attrs, @$cols);
         $order = [@$cols];
     }
-    my $new_meta = {'#' => {attrs => $attrs}};
+    my $new_meta = {'#' => {attrs => $attrs, count => scalar(@$rows)}};
     $new_meta->{'#'}{order} = $order if $order;
 
     my $col_count = scalar keys %$attrs;

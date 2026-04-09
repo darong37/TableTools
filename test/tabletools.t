@@ -61,6 +61,7 @@ subtest 'validate: cols なし・正常' => sub {
     ok(!exists $table->[0]{'#'}{order},   'order は存在しない');
     is($table->[0]{'#'}{attrs}{A}, 'num', 'A は num');
     is($table->[0]{'#'}{attrs}{B}, 'str', 'B は str');
+    is($table->[0]{'#'}{count}, 2,        'count が 2');
     is($table->[1]{A}, 1,                 'データ1行目が正しい');
 };
 
@@ -103,6 +104,7 @@ subtest 'validate: cols あり・メタデータ付きで返す' => sub {
     is($meta->{attrs}{A}, 'num', 'A は num');
     is($meta->{attrs}{B}, 'str', 'B は str');
     is($meta->{attrs}{C}, 'num', 'C は num');
+    is($meta->{count}, 2, 'count が 2');
 
     is($table->[1]{A}, 1, 'データ1行目が正しい');
     is($table->[2]{A}, 2, 'データ2行目が正しい');
@@ -303,6 +305,7 @@ subtest 'orderby: メタデータを引き継ぐ' => sub {
     is_deeply($sorted->[0]{'#'}{order}, ['A', 'B'], 'order の内容が正しい');
     is($sorted->[0]{'#'}{attrs}{A}, 'num',          'attrs A が引き継がれている');
     is($sorted->[0]{'#'}{attrs}{B}, 'str',          'attrs B が引き継がれている');
+    is($sorted->[0]{'#'}{count}, 2,                 'count が引き継がれている');
 };
 
 subtest 'orderby: rows を直接渡せる' => sub {
