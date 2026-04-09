@@ -21,7 +21,8 @@ Date: 2026-04-07
 ```perl
 {'#' => {
     attrs => {A => 'num', B => 'str', C => 'num'},
-    order => ['A', 'B', 'C'],   # 省略可
+    count => 2,
+    order => ['A', 'B', 'C'],   # 省略可（validate($aoh, $cols) のときだけ付く）
 }}
 ```
 
@@ -30,6 +31,9 @@ Date: 2026-04-07
 - `num` は数値としてソートするカラムを表す
 - `str` は文字列としてソートするカラムを表す
 - `attrs` は必須
+- `count` は validate() が生成する meta に必ず含まれるキー
+- `count` は table の rows 件数（スカラー値）を表す
+- `attrs` と `count` が必須、`order` が任意
 - `order` はカラム名の並びを表す配列リファレンス
 - `order` は列順を指定した `validate` のときだけ持つ
 - `rows`: メタデータを持たない AoH。形は次のとおり
@@ -47,7 +51,8 @@ Date: 2026-04-07
 [
     {'#' => {
         attrs => {A => 'num', B => 'str', C => 'num'},
-        order => ['A', 'B', 'C'],   # 省略可
+        count => 2,
+        order => ['A', 'B', 'C'],   # 省略可（validate($aoh, $cols) のときだけ付く）
     }},
     {A => 1, B => 'x', C => 10},
     {A => 2, B => 'y', C => 20},
@@ -66,6 +71,11 @@ Date: 2026-04-07
 - ただし `detach()` を除き、出力は `table` に統一する
 - データ rows が 0 件の場合は、`table` を作らず `[]` を返す
 - `attach()` は `validate()` を呼ばず、受け取った `rows` と `meta` から `table` を組み立てる
+- `validate()` が meta を新規生成するときは `count` を必ず含める
+- `count` は table の rows 件数とする
+- `orderby()` は rows 件数を変えないので、入力 table の meta をそのまま維持する
+- `group()` は rows 件数が変わるので、`count` を再計算した新 meta を生成する
+- `expand()` は rows 件数が変わるので、`count` を再計算した新 meta を生成する
 
 ## API
 記号は次のとおり。
@@ -109,15 +119,7 @@ Date: 2026-04-07
 # group() は入力順をそのまま使うので、必要なら先に orderby() を使う
 # group() では非連続な同一キーの再出現をエラーにする
 # expand() は group() 済みの table を平坦化して table を返す
+# count は validate() が生成する meta に必ず含まれ、table の rows 件数を表す
+# orderby() は行数不変なので meta をそのまま維持する
+# group() と expand() は rows 件数が変わるので count を再計算した新 meta を生成する
 ```
-
-## To Do
-- `validate()` 後の `table` のメタデータに `count` を必須キーとして追加する。`count` は `rows` の件数を表す。`attrs` と同じく必須とし、`order` は従来どおり任意キーとして扱う
-- `Concept` に `count` の定義を追加する
-- メタデータの例と `table` の例に `count` を追加し、`attrs` と `count` が必須、`order` が任意であることを例でも読めるようにする
-- 既存 `table` を `validate()` したときは、`attrs` を持つ `meta` があることだけを見てそのまま返す前提を保つ。`count` が無い `meta` に対して後から補完する処理は入れない
-- `detach()` と `attach()` は `count` の仕様追加の影響を受けない前提で整理する。`detach()` は meta をそのまま分離し、`attach()` は受け取った `rows` と `meta` をそのまま組み立てるだけにする
-- `orderby()` は行数を変えないので、入力 `table` の `count` をそのまま維持することを明記する
-- `group()` は `rows` 件数が変わるので、返す `table` の `count` を再計算する実装に書き換える
-- `expand()` は `rows` 件数が変わるので、返す `table` の `count` を再計算する実装に書き換える
-- `Rules` コメント、実装、テストの期待値を `count` 前提にそろえる。特に meta 比較をしている既存テストは `count` を含む形に更新する
