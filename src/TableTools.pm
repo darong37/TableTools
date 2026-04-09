@@ -202,8 +202,10 @@ sub expand {
     # '@' を再帰的に展開する
     my @flat = _expand_rows($rows, {});
 
-    # attach() で meta を戻して返す
-    return attach(\@flat, $meta);
+    # count を再計算した新 meta を生成して返す
+    my $new_meta = {'#' => {attrs => $meta->{'#'}{attrs}, count => scalar(@flat)}};
+    $new_meta->{'#'}{order} = $meta->{'#'}{order} if $meta->{'#'}{order};
+    return attach(\@flat, $new_meta);
 }
 
 sub _expand_rows {

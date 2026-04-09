@@ -349,6 +349,7 @@ subtest 'expand: 1段グループ化を戻す' => sub {
     is($flat->[1]{A}, 1,   '1行目 A=1');
     is($flat->[1]{B}, 'x', '1行目 B=x');
     is($flat->[1]{C}, 10,  '1行目 C=10');
+    is($flat->[0]{'#'}{count}, 3, 'count が展開後行数（3件）に戻る');
 };
 
 subtest 'expand: 2段グループ化を戻す' => sub {
@@ -366,6 +367,7 @@ subtest 'expand: 2段グループ化を戻す' => sub {
     is($flat->[1]{B}, 'x', '1行目 B=x');
     is($flat->[1]{C}, 10,  '1行目 C=10');
     is($flat->[4]{A}, 2,   '4行目 A=2');
+    is($flat->[0]{'#'}{count}, 4, 'count が展開後行数（4件）に戻る');
 };
 
 subtest 'expand: メタデータを引き継ぐ' => sub {
