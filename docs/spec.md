@@ -70,7 +70,7 @@ my $flat    = expand($grouped);
     {A => 5, B => 'bar', C => 7},
 ]
 
-# table（attrs のみ）
+# table（旧形式: validate() アーリーリターンで通過しうる attrs のみ）
 [
     {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}}},
     {A => 1, B => 'foo', C => 3},
@@ -108,7 +108,7 @@ my $flat    = expand($grouped);
 
 ```perl
 [
-    {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}, order => ['A', 'B', 'C']}},
+    {'#' => {attrs => {A => 'num', B => 'str', C => 'num'}, count => 2, order => ['A', 'B', 'C']}},
     {A => 1, '@' => [
         {B => 'foo', C => 3},
         {B => 'bar', C => 7},
@@ -143,7 +143,7 @@ my $flat    = expand($grouped);
 
 | 入力形式 | アーリーリターン | 動作 | 結果 |
 |---|---|---|---|
-| `rows` | なし | `undef` を `''` に正規化し、型推論で `attrs` を確定 | `attrs` のみ付きの `table` |
+| `rows` | なし | `undef` を `''` に正規化し、型推論で `attrs` を確定 | `attrs` と `count` 付きの `table` |
 | `table`（`attrs` あり） | あり | rows 数確認後、`undef` を `''` に正規化し、同一参照をそのまま返す（再検証しない） | 入力と同じ参照 |
 | 空テーブル | なし | — | `[]` |
 
@@ -153,15 +153,15 @@ my $flat    = expand($grouped);
 
 | 入力形式 | アーリーリターン | 動作 | 結果 |
 |---|---|---|---|
-| `rows` | なし | `undef` を `''` に正規化し、`$cols` キー集合照合 + 型推論 | `attrs` + `order` 付きの `table` |
+| `rows` | なし | `undef` を `''` に正規化し、`$cols` キー集合照合 + 型推論 | `attrs` + `count` + `order` 付きの `table` |
 | `table`（`attrs` あり） | なし | `undef` を `''` に正規化し、`$cols` と `attrs` キー集合を照合 | `$cols` 順で `order` を設定した `table` |
 | 空テーブル | なし | — | `[]` |
 
 検証失敗・型不一致・キー集合不一致の場合は `die`。`undef` は `''` に正規化してから扱う。
 
 ```perl
-my $table = validate(\@rows, ['A', 'B', 'C']);  # attrs + order 付きメタデータを返す
-my $table = validate(\@rows);                    # attrs のみのメタデータを返す
+my $table = validate(\@rows, ['A', 'B', 'C']);  # attrs + count + order 付きメタデータを返す
+my $table = validate(\@rows);                    # attrs + count 付きメタデータを返す
 my $same  = validate($table);                    # attrs 付きなら同一参照を返す
 ```
 

@@ -1,19 +1,28 @@
 {
-  "env": {
-    "PERL5LIB": "/Users/darong/PRJDEV/TableTools/src:/Users/darong/PRJDEV/TableTools/lib"
-  },
   "permissions": {
     "defaultMode": "dontAsk",
     "allow": [
-      "Bash(git status)",
+      "Bash(git status*)",
+      "Bash(git -C*status*)",
       "Bash(git diff*)",
+      "Bash(git -C*diff*)",
       "Bash(git log*)",
+      "Bash(git -C*log*)",
       "Bash(git branch*)",
+      "Bash(git -C*branch*)",
       "Bash(git checkout*)",
+      "Bash(git -C*checkout*)",
       "Bash(git add*)",
+      "Bash(git -C*add*)",
+      "Bash(bash $HOME/.claude/skills/appset/appset.sh)",
+      "Bash(bash $HOME/.claude/skills/bind/bind.sh*)",
       "Bash(perl*)",
       "Bash(ls*)",
-      "Bash(mkdir*)"
+      "Bash(mkdir*)",
+      "Edit(~/.claude/skills/appset/**)",
+      "Edit(~/.claude/skills/bind/**)",
+      "Edit(~/PRJDEV/_template/**)"
     ]
-  }
+  },
+  "env": { "PERL5LIB": "src:lib" }
 }

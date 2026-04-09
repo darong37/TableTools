@@ -25,3 +25,4 @@ bind.sh
 lib/
 .claude/commands/
 .claude/settings.json
+AGENTS.md
