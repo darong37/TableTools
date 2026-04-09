@@ -182,6 +182,7 @@ subtest 'group: 1段グループ化' => sub {
 
     is($grouped->[2]{A}, 2, '2グループ目は A=2');
     is(scalar @{$grouped->[2]{'@'}}, 1, 'A=2 の子は1件');
+    is($grouped->[0]{'#'}{count}, 2, 'count がトップレベルグループ数（2）と一致する');
 };
 
 subtest 'group: ソート済み入力で正常動作' => sub {
@@ -240,6 +241,7 @@ subtest 'group: 2段グループ化' => sub {
 
     ok(!exists $bx_children->[0]{A}, '孫行に A は含まれない');
     ok(!exists $bx_children->[0]{B}, '孫行に B は含まれない');
+    is($grouped->[0]{'#'}{count}, 2, 'count がトップレベルグループ数（2）と一致する');
 };
 
 subtest 'group: 存在しないカラム指定で die' => sub {

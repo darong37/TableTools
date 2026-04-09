@@ -122,8 +122,10 @@ sub group {
 
     # 入力順のまま連続行をまとめる
     my $grouped = _group_rows($rows, $attrs, @cols_list);
-    # attach() で meta を戻して返す
-    return attach($grouped, $meta);
+    # count を再計算した新 meta を生成して返す
+    my $new_meta = {'#' => {attrs => $attrs, count => scalar(@$grouped)}};
+    $new_meta->{'#'}{order} = $meta->{'#'}{order} if $meta->{'#'}{order};
+    return attach($grouped, $new_meta);
 }
 
 sub orderby {
