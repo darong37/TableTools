@@ -110,3 +110,14 @@ Date: 2026-04-07
 # group() では非連続な同一キーの再出現をエラーにする
 # expand() は group() 済みの table を平坦化して table を返す
 ```
+
+## To Do
+- `validate()` 後の `table` のメタデータに `count` を必須キーとして追加する。`count` は `rows` の件数を表す。`attrs` と同じく必須とし、`order` は従来どおり任意キーとして扱う
+- `Concept` に `count` の定義を追加する
+- メタデータの例と `table` の例に `count` を追加し、`attrs` と `count` が必須、`order` が任意であることを例でも読めるようにする
+- 既存 `table` を `validate()` したときは、`attrs` を持つ `meta` があることだけを見てそのまま返す前提を保つ。`count` が無い `meta` に対して後から補完する処理は入れない
+- `detach()` と `attach()` は `count` の仕様追加の影響を受けない前提で整理する。`detach()` は meta をそのまま分離し、`attach()` は受け取った `rows` と `meta` をそのまま組み立てるだけにする
+- `orderby()` は行数を変えないので、入力 `table` の `count` をそのまま維持することを明記する
+- `group()` は `rows` 件数が変わるので、返す `table` の `count` を再計算する実装に書き換える
+- `expand()` は `rows` 件数が変わるので、返す `table` の `count` を再計算する実装に書き換える
+- `Rules` コメント、実装、テストの期待値を `count` 前提にそろえる。特に meta 比較をしている既存テストは `count` を含む形に更新する
